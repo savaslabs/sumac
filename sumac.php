@@ -17,6 +17,7 @@ $console
   ->register('sync')
   ->setDefinition(array(
     new InputArgument('date', InputArgument::REQUIRED, 'Date to sync data for'),
+    new InputOption('dry-run', null, null, 'Do a simluation of what would happen'),
   ))
   ->setDescription('Pushes time entries from Harvest to Redmine')
   ->setCode(function (InputInterface $input, OutputInterface $output) {
@@ -29,7 +30,7 @@ $console
       $to = $from = $range;
     }
     $range = new Range($from, $to);
-    $output->writeln('Syncing data for time period between ' . $from . ' and ' . $to);
+    $output->writeln('<question>Syncing data for time period between ' . $from . ' and ' . $to . '</question>');
     $harvest = new HarvestAPI();
     $yaml = new Yaml();
     $config = $yaml->parse(file_get_contents('config.yml'));
@@ -50,10 +51,10 @@ $console
     // Get entries.
     foreach ($projects->get('data') as $project) {
       if (in_array($project->get('id'), $config['sync']['projects']['exclude'])) {
-        $output->writeln('- Skipping project ' . $project->get('name') . ', in exclude list');
+        $output->writeln('<comment>- Skipping project ' . $project->get('name') . ', in exclude list</comment>');
         continue;
       }
-      $output->writeln('- Retrieving time entry data for ' . $project->get('name'));
+      $output->writeln('<comment>- Retrieving time entry data for ' . $project->get('name') . '</comment>');
       $project_entries = $harvest->getProjectEntries($project->get('id'), $range);
       foreach ($project_entries->get('data') as $entry) {
         $entries[] = $entry;
@@ -128,16 +129,19 @@ $console
         'hours' => $entry->get('hours'),
         'comments' => $entry->get('notes') . ' [Harvest ID #' . $entry->get('id') . ']',
       );
+
       try {
-        $time_api->create($params);
-        $output->writeln(sprintf('Created new time entry for issue #%d with hours %s', $redmine_issue_number, $entry->get('hours')));
+        if (!$input->getOption('dry-run')) {
+          $time_api->create($params);
+        }
+        $output->writeln(sprintf('<comment>Created new time entry for issue #%d with hours %s</comment>', $redmine_issue_number, $entry->get('hours')));
       }
       catch (Exception $e) {
-        $output->writeln(sprintf('Failed to create time entry for issue #%d!', $redmine_issue_number, $e->getMessage()));
+        $output->writeln(sprintf('<comment>Failed to create time entry for issue #%d!</comment>', $redmine_issue_number, $e->getMessage()));
       }
     }
 
-    $output->writeln('Done!');
+    $output->writeln('<question>All done!</question>');
   })
 ;
 
