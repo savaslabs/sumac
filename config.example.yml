@@ -10,6 +10,7 @@ auth:
 sync:
   users:
     785018: "redmine_username"
+    123456: "another_user"
   projects:
     exclude:
       - "5990760"
@@ -17,3 +18,4 @@ sync:
       - "7174765"
     map:
       6110509: "Some project name in Redmine"
+      1234567: "Another project name in Redmine"
