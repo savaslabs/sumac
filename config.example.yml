@@ -1,0 +1,19 @@
+auth:
+  harvest:
+    mail: 'kosta@savaslabs.com'
+    pass: ''
+    account: 'chrisrusso'
+  redmine:
+    user: 'kostajh'
+    pass: ''
+    url: 'http://localhost:9292'
+sync:
+  users:
+    785018: 1
+  projects:
+    exclude:
+      - "5990760"
+      - "7077045"
+      - "7174765"
+    map:
+      6110509: "Some project name in Redmine"
