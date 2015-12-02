@@ -124,13 +124,18 @@ $console
             continue;
         }
 
-      // We can log this entry.
-      // TODO: Set author.
-      // TODO: Set spent_on.
+        if (!isset($config['sync']['users'][$entry->get('user-id')])) {
+            // No mapping is defined in the config, so throw an error and skip this entry.
+            $output->writeln(sprintf('<error>No mapping is defined for user %d, please adjust config.yaml</error>', $entry->get('user-id')));
+            continue;
+        }
+
+        // We can log this entry.
+        // TODO: Set author.
         $params = array(
             'issue_id' => $redmine_issue_number,
              // Default to 'development'.
-            'spent_on' => '',
+            'spent_on' => $entry->get('spent-at'),
             'activity_id' => 9,
             'project_id' => $redmine_issue['issue']['project']['id'],
             'hours' => $entry->get('hours'),
@@ -138,7 +143,11 @@ $console
         );
 
         try {
+            $redmine_user = new Redmine\Client($config['auth']['redmine']['url'], $config['auth']['redmine']['user'], $config['auth']['redmine']['pass']);
+            $redmine_user->setImpersonateUser($config['sync']['users'][$entry->get('user-id')]);
             if (!$input->getOption('dry-run')) {
+
+                $time_api = new Redmine\Api\TimeEntry($redmine_user);
                 $time_api->create($params);
             }
             $output->writeln(sprintf('<comment>Created new time entry for issue #%d with hours %s</comment>', $redmine_issue_number, $entry->get('hours')));

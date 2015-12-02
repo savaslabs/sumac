@@ -9,7 +9,7 @@ auth:
     url: 'http://localhost:9292'
 sync:
   users:
-    785018: 1
+    785018: "redmine_username"
   projects:
     exclude:
       - "5990760"
