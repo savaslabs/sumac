@@ -13,6 +13,7 @@ use Harvest\Model\Range;
 use Carbon\Carbon;
 
 $console = new Application();
+// TODO: Add option for `--update`.
 $console
   ->register('sync')
   ->setDefinition(array(
@@ -101,7 +102,8 @@ $console
           // There might be a match.
             foreach ($redmine_time_entries['time_entries'] as $rm_time_entry) {
                 if (strpos($rm_time_entry['comments'], $entry->get('id')) !== false) {
-                  // There's a match, skip this entry.
+                    // There's a match, skip this entry.
+                    // TODO: If `--update` is passed, update the time entry.
                     $output->writeln('<comment>- There is already a time entry for ' . $entry->get('notes') . '</comment>');
                     continue 2;
                 }
