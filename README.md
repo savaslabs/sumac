@@ -4,6 +4,13 @@ A simple command line utility for pulling Harvest entries and pushing them into 
 
 How does it work? Log a time entry in Harvest and say "Worked on issue #123". Run `php sumac.php sync 20151202` and the app will pull your time entry from Harvest and create a new time entry in Redmine.
 
+## Requirements
+
+- Redmine 3
+- Admin access to Harvest and Redmine
+
+Please use the `--dry-run` option to confirm changes. Always back up your database before running. Things might break.
+
 ## Configuration
 
 Copy `config.example.yml` to `config.yml`.
