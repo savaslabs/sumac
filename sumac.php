@@ -172,13 +172,15 @@ $console
         }
 
         // We can log this entry.
+        // Round the hours to the nearest .25 to simulate what Harvest does.
+        $hours = round($entry->get('hours') / .25, 0) * 0.25;
         $params = array(
             'issue_id' => $redmine_issue_number,
              // Default to 'development'.
             'spent_on' => $entry->get('spent-at'),
             'activity_id' => 9,
             'project_id' => $redmine_issue['issue']['project']['id'],
-            'hours' => $entry->get('hours'),
+            'hours' => $hours,
             'comments' => $entry->get('notes').' [Harvest ID #'.$entry->get('id').']',
         );
 
@@ -201,9 +203,9 @@ $console
             $op = ($update) ? 'Updated' : 'Created';
             $output->writeln(
                 sprintf(
-                    '<comment>'.$op.' time entry for issue #%d with hours %s</comment>',
+                    '<comment>'.$op.' time entry for issue #%d with %s hours</comment>',
                     $redmine_issue_number,
-                    $entry->get('hours')
+                    $hours
                 )
             );
         } catch (Exception $e) {
