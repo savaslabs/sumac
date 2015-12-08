@@ -13,12 +13,12 @@ use Harvest\Model\Range;
 use Carbon\Carbon;
 
 $console = new Application();
-// TODO: Add option for `--update`.
 $console
   ->register('sync')
   ->setDefinition(array(
     new InputArgument('date', InputArgument::REQUIRED, 'Date to sync data for'),
-    new InputOption('dry-run', null, null, 'Do a simulation of what would happen'),
+    new InputOption('update', 'u', null, 'Update existing time entries.'),
+    new InputOption('dry-run', 'd', null, 'Do a simulation of what would happen'),
   ))
   ->setDescription('Pushes time entries from Harvest to Redmine')
   ->setCode(function (InputInterface $input, OutputInterface $output) {
@@ -73,6 +73,7 @@ $console
 
     $entries_to_log = [];
     $entries_without_id = [];
+    $redmine_issues_to_update = [];
 
     foreach ($entries as $entry) {
         if ($entry->get('billable') == false) {
@@ -98,6 +99,8 @@ $console
     $time_api = new Redmine\Api\TimeEntry($redmine_client);
 
     foreach ($entries_to_log as $entry) {
+        $update = false;
+        $update_id = null;
         $output->writeln(sprintf('<info>Processing entry %d - %s</info>', $entry->get('id'), $entry->get('notes')));
         // Load the Redmine issue and check if the Harvest time entry ID is there, if so, skip.
         $redmine_issue_numbers = [];
@@ -114,34 +117,47 @@ $console
             foreach ($redmine_time_entries['time_entries'] as $rm_time_entry) {
                 if (strpos($rm_time_entry['comments'], $entry->get('id')) !== false) {
                     // There's a match, skip this entry.
-                    // TODO: If `--update` is passed, update the time entry.
-                    $output->writeln('<comment>- There is already a time entry for '.$entry->get('notes').'</comment>');
-                    continue 2;
+                    if ($input->getOption('update')) {
+                        $update = true;
+                        $update_id = $rm_time_entry['id'];
+                        // Break out of this loop and continue with processing the update.
+                        break;
+                    } else {
+                        $output->writeln(
+                            '<comment>- There is already a time entry for '.$entry->get('notes').'</comment>'
+                        );
+                        continue 2;
+                    }
                 }
             }
         }
 
         $issue_api = new Redmine\Api\Issue($redmine_client);
         $redmine_issue = $issue_api->show($redmine_issue_number);
-        if (!$redmine_issue || !isset($redmine_issue['issue']['project']['id'])) {
-            // Issue doesn't exist in Redmine; this is probably a GitHub issue reference.
-            $output->writeln(sprintf('<error>- Could not find Redmine issue %d!</error>', $redmine_issue_number));
-            continue;
-        }
 
-        // Validate that issue ID exists in project.
-        if (isset($config['sync']['projects']['map'][$entry->get('project-id')])
-            && $config['sync']['projects']['map'][$entry->get('project-id')]
-            !== $redmine_issue['issue']['project']['name']) {
-            // The issue number doesn't belong to the Harvest project we are looking at
-          // time entries for, so continue. It's probably a GitHub issue ref.
-            $output->writeln(
-                sprintf(
-                    '<comment>- Skipping entry for %d as it is out of range!</comment>',
-                    $entry->get('id')
-                )
-            );
-            continue;
+        if (!$update) {
+            // If we are creating a new entry, verify that it can be created.
+            if (!$redmine_issue || !isset($redmine_issue['issue']['project']['id'])) {
+                // Issue doesn't exist in Redmine; this is probably a GitHub issue reference.
+                $output->writeln(sprintf('<error>- Could not find Redmine issue %d!</error>', $redmine_issue_number));
+                continue;
+            }
+
+            // Validate that issue ID exists in project.
+            if (isset($config['sync']['projects']['map'][$entry->get('project-id')])
+                && $config['sync']['projects']['map'][$entry->get('project-id')]
+                !== $redmine_issue['issue']['project']['name']
+            ) {
+                // The issue number doesn't belong to the Harvest project we are looking at
+                // time entries for, so continue. It's probably a GitHub issue ref.
+                $output->writeln(
+                    sprintf(
+                        '<comment>- Skipping entry for %d as it is out of range!</comment>',
+                        $entry->get('id')
+                    )
+                );
+                continue;
+            }
         }
 
         if (!isset($config['sync']['users'][$entry->get('user-id')])) {
@@ -156,7 +172,6 @@ $console
         }
 
         // We can log this entry.
-        // TODO: Set author.
         $params = array(
             'issue_id' => $redmine_issue_number,
              // Default to 'development'.
@@ -176,11 +191,17 @@ $console
             $redmine_user->setImpersonateUser($config['sync']['users'][$entry->get('user-id')]);
             if (!$input->getOption('dry-run')) {
                 $time_api = new Redmine\Api\TimeEntry($redmine_user);
-                $time_api->create($params);
+                if (!$update) {
+                    $time_api->create($params);
+                } else {
+                    // Update existing entry.
+                    $time_api->update($update_id, $params);
+                }
             }
+            $op = ($update) ? 'Updated' : 'Created';
             $output->writeln(
                 sprintf(
-                    '<comment>Created new time entry for issue #%d with hours %s</comment>',
+                    '<comment>'.$op.' time entry for issue #%d with hours %s</comment>',
                     $redmine_issue_number,
                     $entry->get('hours')
                 )
