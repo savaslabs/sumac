@@ -18,7 +18,7 @@ $console
   ->register('sync')
   ->setDefinition(array(
     new InputArgument('date', InputArgument::REQUIRED, 'Date to sync data for'),
-    new InputOption('dry-run', null, null, 'Do a simluation of what would happen'),
+    new InputOption('dry-run', null, null, 'Do a simulation of what would happen'),
   ))
   ->setDescription('Pushes time entries from Harvest to Redmine')
   ->setCode(function (InputInterface $input, OutputInterface $output) {
