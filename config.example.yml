@@ -8,14 +8,17 @@ auth:
     pass: ''
     url: 'http://localhost:9292'
 sync:
+  # Map a Harvest user ID to a redmine user ID. Required.
   users:
     785018: "redmine_username"
     123456: "another_user"
   projects:
+    # Exclude Harvest project IDs from time entry processing.
     exclude:
       - "5990760"
       - "7077045"
       - "7174765"
     map:
+      # Map the Harvest project ID to a Redmine project name. Optional but recommended.
       6110509: "Some project name in Redmine"
       1234567: "Another project name in Redmine"
