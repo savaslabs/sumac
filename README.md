@@ -11,6 +11,18 @@ How does it work? Log a time entry in Harvest and say "Worked on issue #123". Ru
 
 Please use the `--dry-run` option to confirm changes. Always back up your database before running. Things might break.
 
+## Usage
+
+### Crontab
+
+Recommended usage is via a crontab entry, once a day at a time when no timers are running. You'll want to call the app like so: `php sumac.php sync`.
+
+### Standalone
+
+You can also run the app on its own with a bit more granularity. For example, pass in an argument like `20150101:20151208` to sync all entries from Jan 1, 2015 to Dec 8, 2015.
+
+You may also use the `--dry-run` flag to not actually post any data to Redmine. Finally, use the `--update` option if you'd like to make updates to existing Redmine time entries. This is helpful if a user has gone back into Harvest and adjusted wording for Redmine issue descriptions, or time amounts, etc.
+
 ## Configuration
 
 Copy `config.example.yml` to `config.yml`.
