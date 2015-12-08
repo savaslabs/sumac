@@ -24,6 +24,7 @@ $console
               Carbon::create()->format('Ymd')
           ),
           new InputOption('update', 'u', null, 'Update existing time entries.'),
+          new InputOption('strict', 's', null, 'Require project map to be defined.'),
           new InputOption('dry-run', 'd', null, 'Do a simulation of what would happen'),
       )
   )
@@ -71,6 +72,17 @@ $console
                 $output->writeln('<comment>- Skipping project '.$project->get('name').', in exclude list</comment>');
                 continue;
             }
+            // In strict mode, only get time entries for project with a mapping.
+            if ($input->getOption('strict') && !isset($config['sync']['projects']['map'][$project->get('id')])) {
+                $output->writeln(
+                    sprintf(
+                        '<comment>- Skipping project %s (%d), it is not mapped to a Redmine project.</comment>',
+                        $project->get('name'),
+                        $project->get('id')
+                    )
+                );
+                continue;
+            }
             $output->writeln('<comment>- Retrieving time entry data for '.$project->get('name').'</comment>');
             $project_entries = $harvest->getProjectEntries($project->get('id'), $range);
             foreach ($project_entries->get('data') as $entry) {
@@ -80,7 +92,6 @@ $console
 
         $entries_to_log = [];
         $entries_without_id = [];
-        $redmine_issues_to_update = [];
 
         foreach ($entries as $entry) {
             if ($entry->get('billable') == false) {
@@ -108,7 +119,14 @@ $console
         foreach ($entries_to_log as $entry) {
             $update = false;
             $update_id = null;
-            $output->writeln(sprintf('<info>Processing entry %d - %s</info>', $entry->get('id'), $entry->get('notes')));
+            $output->writeln(
+                sprintf(
+                    '<info>Processing entry: "%s" (%d) in project %s</info>',
+                    $entry->get('notes'),
+                    $entry->get('id'),
+                    $config['sync']['projects']['map'][$entry->get('project-id')]
+                )
+            );
             // Load the Redmine issue and check if the Harvest time entry ID is there, if so, skip.
             $redmine_issue_numbers = [];
             preg_match('/#([0-9]+)/', $entry->get('notes'), $redmine_issue_numbers);
