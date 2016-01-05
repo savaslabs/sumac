@@ -94,10 +94,8 @@ $console
         $entries_without_id = [];
 
         foreach ($entries as $entry) {
-            if ($entry->get('billable') == false) {
-                // We only care about billable time.
-                continue;
-            }
+            // TODO: We used to filter by billable time, but the API changed and that's no longer available to us.
+            // @see https://github.com/harvesthq/api/issues/153
             if (strpos($entry->get('notes'), '#') === false) {
                 $entries_without_id[] = $entry;
             } else {
