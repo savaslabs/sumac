@@ -203,6 +203,11 @@ $console
             // Round the hours up to the nearest .25 to simulate what Harvest does.
             $hours_parts = explode('.', $entry->get('hours'));
             if (count($hours_parts) == 2) {
+                // Harvest gives us entries like 1.5 instead of 1.50. So tack on an extra 0 if we need.
+                if (strlen($hours_parts[1]) == 1) {
+                    $hours_parts[1] = (int) ($hours_parts[1].'0');
+                }
+                // Now round up as needed.
                 if ($hours_parts[1] == 0) {
                     // Sample entry 1.0.
                     // Do nothing.
