@@ -203,7 +203,7 @@ $console
             // Round the hours up to the nearest .25 to simulate what Harvest does.
             $hours_parts = explode('.', $entry->get('hours'));
             if (count($hours_parts) == 2) {
-                if ($hours_parts[1] <= 25) {
+                if ($hours_parts[1] > 0 && $hours_parts[1] <= 25) {
                     $hours_parts[1] = 25;
                 } elseif ($hours_parts[1] <= 50) {
                     $hours_parts[1] = 5;
