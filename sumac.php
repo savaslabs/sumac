@@ -43,7 +43,7 @@ $console
         $yaml = new Yaml();
         $config = $yaml->parse(file_get_contents('config.yml'));
         if (!$config) {
-            $output->writeln('<error>Could not load the config.yaml file.</error>');
+            $output->writeln('<error>Could not load the config.yml file.</error>');
 
             return;
         }
@@ -192,7 +192,7 @@ $console
                 // No mapping is defined in the config, so throw an error and skip this entry.
                 $output->writeln(
                     sprintf(
-                        '<error>No mapping is defined for user %d, please adjust config.yaml</error>',
+                        '<error>No mapping is defined for user %d, please adjust config.yml</error>',
                         $entry->get('user-id')
                     )
                 );
