@@ -1,79 +1,162 @@
-#!/usr/bin/env php
 <?php
-require __DIR__.'/vendor/autoload.php';
 
-use Symfony\Component\Console\Application;
+namespace Sumac\Console\Command;
+
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Yaml\Yaml;
+use Redmine;
 use Harvest\HarvestAPI;
 use Harvest\Model\Range;
 use Carbon\Carbon;
 
-$console = new Application();
-$console
-  ->register('sync')
-  ->setDefinition(
-      array(
-          new InputArgument(
-              'date',
-              InputArgument::OPTIONAL,
-              'Date to sync data for. Defaults to current day.',
-              Carbon::create()->format('Ymd')
-          ),
-          new InputOption('update', 'u', null, 'Update existing time entries.'),
-          new InputOption('strict', 's', null, 'Require project map to be defined.'),
-          new InputOption('dry-run', 'd', null, 'Do a simulation of what would happen'),
-      )
-  )
-      ->setDescription('Pushes time entries from Harvest to Redmine')
-      ->setCode(function (InputInterface $input, OutputInterface $output) {
+class SyncCommand extends Command
+{
+    /** @var  \Harvest\Model\Range */
+    private $range;
+    private $input;
+    private $output;
+    private $config;
+    /** @var  \Redmine\Client */
+    private $redmineClient;
+    /** @var  \Harvest\HarvestAPI */
+    private $harvestClient;
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function configure()
+    {
+        $this->setName('sync')
+          ->setDefinition(
+              [
+              new InputArgument(
+                  'date',
+                  InputArgument::OPTIONAL,
+                  'Date to sync data for. Defaults to current day.',
+                  Carbon::create()->format('Ymd')
+              ),
+              new InputOption('update', 'u', null, 'Update existing time entries.'),
+              new InputOption('strict', 's', null, 'Require project map to be defined.'),
+              new InputOption('dry-run', 'd', null, 'Do a simulation of what would happen'),
+              ]
+          )
+          ->setDescription('Pushes time entries from Harvest to Redmine');
+    }
+
+    /**
+     * Set the Harvest Range based on the 'date' argument.
+     *
+     * @param \Symfony\Component\Console\Input\InputInterface $input
+     */
+    private function setRange(InputInterface $input)
+    {
         $range = $input->getArgument('date');
         if (strpos($range, ':') !== false) {
             list($from, $to) = explode(':', $range);
         } else {
             $to = $from = $range;
         }
-        $range = new Range($from, $to);
-        $output->writeln('<question>Syncing data for time period between '.$from.' and '.$to.'</question>');
+        $this->range = new Range($from, $to);
+    }
 
-      // Load the configuration.
+    /**
+     * Get the date range for the sync query.
+     *
+     * @return \Harvest\Model\Range;
+     */
+    private function getRange()
+    {
+        return $this->range;
+    }
+
+    /**
+     * Set configuration from config.yml.
+     */
+    private function setConfig()
+    {
+        // Load the configuration.
         $yaml = new Yaml();
-        $config = $yaml->parse(file_get_contents('config.yml'));
-        if (!$config) {
-            $output->writeln('<error>Could not load the config.yml file.</error>');
-
-            return;
+        if (!file_exists('config.yml')) {
+            throw new \Exception('Could not find a config.yml file.');
         }
+        try {
+            $this->config = $yaml->parse(file_get_contents('config.yml'), true);
+        } catch (\Exception $e) {
+            $this->output->writeln(sprintf('<error>%s</error>', $e->getMessage()));
+        }
+    }
 
-      // Initialize the Harvest client.
-        $harvest = new HarvestAPI();
-        $harvest->setUser($config['auth']['harvest']['mail']);
-        $harvest->setPassword($config['auth']['harvest']['pass']);
-        $harvest->setAccount($config['auth']['harvest']['account']);
+    /**
+     * Set a Harvest client for later use.
+     */
+    private function setHarvestClient($config)
+    {
+        $this->harvestClient = new HarvestAPI();
+        $this->harvestClient->setUser($config['auth']['harvest']['mail']);
+        $this->harvestClient->setPassword($config['auth']['harvest']['pass']);
+        $this->harvestClient->setAccount($config['auth']['harvest']['account']);
+    }
 
-      // Initialize the Redmine client.
-        $redmine_client = new Redmine\Client(
+    /**
+     * Set a Redmine client for later use.
+     */
+    private function setRedmineClient($config)
+    {
+        $this->redmineClient = new Redmine\Client(
             $config['auth']['redmine']['url'],
             $config['auth']['redmine']['user'],
             $config['auth']['redmine']['pass']
         );
+    }
 
-      // Get all project entries.
-        $projects = $harvest->getProjects(Carbon::parse($from)->toDateTimeString());
+    /**
+     * {@inheritdoc}
+     */
+    protected function execute(InputInterface $input, OutputInterface $output)
+    {
+        // Set input/output for use in other methods.
+        $this->input = $input;
+        $this->output = $output;
+
+        // Set the Harvest Range.
+        $this->setRange($input);
+        $output->writeln('<question>Syncing data for time period between '.
+            $this->getRange()->from().
+            ' and '.
+            $this->getRange()->to().'</question>');
+
+        // Load configuration.
+        $this->setConfig();
+
+        // Initialize the Harvest client.
+        $this->setHarvestClient($this->config);
+
+        // Initialize the Redmine client.
+        $this->setRedmineClient($this->config);
+
+        // Get all Harvest project entries.
+        // n.b. since `updated_since` no longer works as an argument for the
+        // Harvest REST API, we need to manually filter these by date range
+        // further below.
+        /** @var \Harvest\Model\Result $projects */
+        $projects = $this->harvestClient->getProjects();
+
         $output->writeln('<info>Getting data for '.count($projects->get('data')).' projects</info>');
         $entries = [];
 
-      // Get entries.
+        // Get entries.
+        /** @var $project \Harvest\Model\Project */
         foreach ($projects->get('data') as $project) {
-            if (in_array($project->get('id'), $config['sync']['projects']['exclude'])) {
+            if (in_array($project->get('id'), $this->config['sync']['projects']['exclude'])) {
                 $output->writeln('<comment>- Skipping project '.$project->get('name').', in exclude list</comment>');
                 continue;
             }
             // In strict mode, only get time entries for project with a mapping.
-            if ($input->getOption('strict') && !isset($config['sync']['projects']['map'][$project->get('id')])) {
+            if ($input->getOption('strict') && !isset($this->config['sync']['projects']['map'][$project->get('id')])) {
                 $output->writeln(
                     sprintf(
                         '<comment>- Skipping project %s (%d), it is not mapped to a Redmine project.</comment>',
@@ -84,7 +167,7 @@ $console
                 continue;
             }
             $output->writeln('<comment>- Retrieving time entry data for '.$project->get('name').'</comment>');
-            $project_entries = $harvest->getProjectEntries($project->get('id'), $range);
+            $project_entries = $this->harvestClient->getProjectEntries($project->get('id'), $this->getRange());
             foreach ($project_entries->get('data') as $entry) {
                 $entries[] = $entry;
             }
@@ -111,8 +194,8 @@ $console
             )
         );
 
-      // Get all time entries from Redmine.
-        $time_api = new Redmine\Api\TimeEntry($redmine_client);
+        // Get all time entries from Redmine.
+        $time_api = new Redmine\Api\TimeEntry($this->redmineClient);
 
         foreach ($entries_to_log as $entry) {
             $update = false;
@@ -122,7 +205,7 @@ $console
                     '<info>Processing entry: "%s" (%d) in project %s</info>',
                     $entry->get('notes'),
                     $entry->get('id'),
-                    $config['sync']['projects']['map'][$entry->get('project-id')]
+                    $this->config['sync']['projects']['map'][$entry->get('project-id')]
                 )
             );
             // Load the Redmine issue and check if the Harvest time entry ID is there, if so, skip.
@@ -131,10 +214,10 @@ $console
             // Strip the leading '#', and take the first entry.
             $redmine_issue_number = reset($redmine_issue_numbers);
             $redmine_issue_number = str_replace('#', '', $redmine_issue_number);
-            $redmine_time_entries = $time_api->all(array(
-            'issue_id' => $redmine_issue_number,
-            'limit' => 10000,
-            ));
+            $redmine_time_entries = $time_api->all([
+              'issue_id' => $redmine_issue_number,
+              'limit' => 10000,
+            ]);
             if (isset($redmine_time_entries['total_count']) && $redmine_time_entries['total_count'] > 0) {
                 // There might be a match.
                 foreach ($redmine_time_entries['time_entries'] as $rm_time_entry) {
@@ -155,7 +238,7 @@ $console
                 }
             }
 
-            $issue_api = new Redmine\Api\Issue($redmine_client);
+            $issue_api = new Redmine\Api\Issue($this->redmineClient);
             $redmine_issue = $issue_api->show($redmine_issue_number);
 
             if (!$update) {
@@ -172,9 +255,9 @@ $console
                 }
 
                 // Validate that issue ID exists in project.
-                if (isset($config['sync']['projects']['map'][$entry->get('project-id')])
-                && $config['sync']['projects']['map'][$entry->get('project-id')]
-                !== $redmine_issue['issue']['project']['name']
+                if (isset($this->config['sync']['projects']['map'][$entry->get('project-id')])
+                  && $this->config['sync']['projects']['map'][$entry->get('project-id')]
+                  !== $redmine_issue['issue']['project']['name']
                 ) {
                     // The issue number doesn't belong to the Harvest project we are looking at
                     // time entries for, so continue. It's probably a GitHub issue ref.
@@ -188,7 +271,7 @@ $console
                 }
             }
 
-            if (!isset($config['sync']['users'][$entry->get('user-id')])) {
+            if (!isset($this->config['sync']['users'][$entry->get('user-id')])) {
                 // No mapping is defined in the config, so throw an error and skip this entry.
                 $output->writeln(
                     sprintf(
@@ -228,23 +311,23 @@ $console
             }
             $hours = floatval(implode('.', $hours_parts));
 
-            $params = array(
-            'issue_id' => $redmine_issue_number,
-             // Default to 'development'.
-            'spent_on' => $entry->get('spent-at'),
-            'activity_id' => 9,
-            'project_id' => $redmine_issue['issue']['project']['id'],
-            'hours' => $hours,
-            'comments' => $entry->get('notes').' [Harvest ID #'.$entry->get('id').']',
-            );
+            $params = [
+              'issue_id' => $redmine_issue_number,
+                // Default to 'development'.
+              'spent_on' => $entry->get('spent-at'),
+              'activity_id' => 9,
+              'project_id' => $redmine_issue['issue']['project']['id'],
+              'hours' => $hours,
+              'comments' => $entry->get('notes').' [Harvest ID #'.$entry->get('id').']',
+            ];
 
             try {
                 $redmine_user = new Redmine\Client(
-                    $config['auth']['redmine']['url'],
-                    $config['auth']['redmine']['user'],
-                    $config['auth']['redmine']['pass']
+                    $this->config['auth']['redmine']['url'],
+                    $this->config['auth']['redmine']['user'],
+                    $this->config['auth']['redmine']['pass']
                 );
-                $redmine_user->setImpersonateUser($config['sync']['users'][$entry->get('user-id')]);
+                $redmine_user->setImpersonateUser($this->config['sync']['users'][$entry->get('user-id')]);
                 if (!$input->getOption('dry-run')) {
                     $time_api = new Redmine\Api\TimeEntry($redmine_user);
                     if (!$update) {
@@ -263,7 +346,7 @@ $console
                         $entry->get('hours')
                     )
                 );
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 $output->writeln(
                     sprintf(
                         '<comment>Failed to create time entry for issue #%d!</comment>',
@@ -275,6 +358,5 @@ $console
         }
 
         $output->writeln('<question>All done!</question>');
-      });
-
-$console->run();
+    }
+}
