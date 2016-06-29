@@ -7,5 +7,15 @@
         "nesbot/carbon": "^1.21",
         "phpro/grumphp": "^0.6.0",
         "fabpot/php-cs-fixer": "^1.11"
+    },
+    "autoload": {
+        "psr-4": {
+            "Sumac\\": "src/Sumac/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
     }
 }
