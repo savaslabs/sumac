@@ -1,5 +1,7 @@
 # Sumac
 
+![sumac monster consuming time](monster-sumac.gif "sumac monster consuming time")   :rocket:  :raised_hands: :pray: :point_right: :satellite: :soon: ![Redmine](redmine.png "Redmine") 
+
 A simple command line utility for pulling Harvest entries and pushing them into Redmine. Harvest, Redmine, a red harvest... sumac.
 
 How does it work? Log a time entry in Harvest and say "Worked on issue #123". Run `php sumac.php sync 20151202` and the app will pull your time entry from Harvest and create a new time entry in Redmine.
