@@ -133,7 +133,10 @@ class SyncCommand extends Command
         foreach ($projects['projects'] as $project) {
             foreach ($project['custom_fields'] as $custom_field) {
                 if ($custom_field['name'] == 'Harvest Project ID' && !empty($custom_field['value'])) {
-                    $this->projectMap[$custom_field['value']] = $project['id'];
+                    $project_ids = explode(',', $custom_field['value']);
+                    foreach ($project_ids as $project_id) {
+                        $this->projectMap[trim($project_id)] = $project['id'];
+                    }
                 }
             }
         }
