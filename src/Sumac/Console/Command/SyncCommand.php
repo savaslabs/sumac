@@ -25,6 +25,11 @@ class SyncCommand extends Command
     /** @var  \Harvest\HarvestAPI */
     private $harvestClient;
 
+    /** @var array
+     * Maps harvest IDs to Redmine IDs.
+     */
+    protected $projectMap;
+
     /**
      * {@inheritdoc}
      */
@@ -114,6 +119,27 @@ class SyncCommand extends Command
     }
 
     /**
+     * Pull projects from Redmine and populate redmine/harvest map.
+     */
+    protected function populateProjectMap(OutputInterface $output)
+    {
+        $this->projectMap = array();
+
+        if (!$this->redmineClient) {
+            $this->setRedmineClient($this->config);
+        }
+
+        $projects = $this->redmineClient->project->all();
+        foreach ($projects['projects'] as $project) {
+            foreach ($project['custom_fields'] as $custom_field) {
+                if ($custom_field['name'] == 'Harvest Project ID' && !empty($custom_field['value'])) {
+                    $this->projectMap[$custom_field['value']] = $project['id'];
+                }
+            }
+        }
+    }
+
+    /**
      * {@inheritdoc}
      */
     protected function execute(InputInterface $input, OutputInterface $output)
@@ -138,6 +164,8 @@ class SyncCommand extends Command
         // Initialize the Redmine client.
         $this->setRedmineClient($this->config);
 
+        $this->populateProjectMap($output);
+
         // Get all Harvest project entries.
         // n.b. since `updated_since` no longer works as an argument for the
         // Harvest REST API, we need to manually filter these by date range
@@ -155,8 +183,9 @@ class SyncCommand extends Command
                 $output->writeln('<comment>- Skipping project '.$project->get('name').', in exclude list</comment>');
                 continue;
             }
+
             // In strict mode, only get time entries for project with a mapping.
-            if ($input->getOption('strict') && !isset($this->config['sync']['projects']['map'][$project->get('id')])) {
+            if ($input->getOption('strict') && !isset($this->projectMap[$project->get('id')])) {
                 $output->writeln(
                     sprintf(
                         '<comment>- Skipping project %s (%d), it is not mapped to a Redmine project.</comment>',
@@ -166,7 +195,11 @@ class SyncCommand extends Command
                 );
                 continue;
             }
-            $output->writeln('<comment>- Retrieving time entry data for '.$project->get('name').'</comment>');
+
+            $output->writeln('<comment>- Retrieving time entry data for '
+              .$project->get('name')
+              .' ('.$project->get('id')
+              .')</comment>');
             $project_entries = $this->harvestClient->getProjectEntries($project->get('id'), $this->getRange());
             foreach ($project_entries->get('data') as $entry) {
                 $entries[] = $entry;
@@ -202,22 +235,28 @@ class SyncCommand extends Command
             $update_id = null;
             $output->writeln(
                 sprintf(
-                    '<info>Processing entry: "%s" (%d) in project %s</info>',
+                    '<info>Processing entry: "%s" (%d) in Redmine project %s</info>',
                     $entry->get('notes'),
                     $entry->get('id'),
-                    $this->config['sync']['projects']['map'][$entry->get('project-id')]
+                    isset($this->projectMap[$entry->get('project-id')]) ?
+                      $this->projectMap[$entry->get('project-id')] : 'unknown'
                 )
             );
+
             // Load the Redmine issue and check if the Harvest time entry ID is there, if so, skip.
             $redmine_issue_numbers = [];
             preg_match('/#([0-9]+)/', $entry->get('notes'), $redmine_issue_numbers);
             // Strip the leading '#', and take the first entry.
             $redmine_issue_number = reset($redmine_issue_numbers);
             $redmine_issue_number = str_replace('#', '', $redmine_issue_number);
-            $redmine_time_entries = $time_api->all([
+
+            $redmine_search_params = array(
               'issue_id' => $redmine_issue_number,
               'limit' => 10000,
-            ]);
+            );
+
+            $redmine_time_entries = $time_api->all($redmine_search_params);
+
             if (isset($redmine_time_entries['total_count']) && $redmine_time_entries['total_count'] > 0) {
                 // There might be a match.
                 foreach ($redmine_time_entries['time_entries'] as $rm_time_entry) {
@@ -230,7 +269,9 @@ class SyncCommand extends Command
                             break;
                         } else {
                             $output->writeln(
-                                '<comment>- There is already a time entry for '.$entry->get('notes').'</comment>'
+                                '<comment>- There is already a time entry for '
+                                .$entry->get('notes')
+                                .'</comment>'
                             );
                             continue 2;
                         }
@@ -255,8 +296,8 @@ class SyncCommand extends Command
                 }
 
                 // Validate that issue ID exists in project.
-                if (isset($this->config['sync']['projects']['map'][$entry->get('project-id')])
-                  && $this->config['sync']['projects']['map'][$entry->get('project-id')]
+                if (isset($this->projectMap[$entry->get('project-id')])
+                  && $this->projectMap[$entry->get('project-id')]
                   !== $redmine_issue['issue']['project']['name']
                 ) {
                     // The issue number doesn't belong to the Harvest project we are looking at
