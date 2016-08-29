@@ -18,7 +18,3 @@ sync:
       - "5990760"
       - "7077045"
       - "7174765"
-    map:
-      # Map the Harvest project ID to a Redmine project name. Optional but recommended.
-      6110509: "Some project name in Redmine"
-      1234567: "Another project name in Redmine"

@@ -39,6 +39,10 @@ Copy `config.example.yml` to `config.yml`.
 
 Fill in your credentials for Harvest and Redmine. The user account should have admin privileges to both systems.
 
+### Redmine configuration
+
+Sumac will look for a custom redmine project field called `Harvest Project ID`, and use the values of that field to populate the mapping between Redmine projects and Harvest projects. You'll need to create this field if it doesn't exist, and also populate it for each project which you want to sync properly.
+
 ### Sync settings
 
 There are two major sections, `users` and `projects`.
@@ -51,6 +55,4 @@ This app won't push time entries into Harvest unless it can find a match between
 
 #### Projects
 
-This section contains two sub-sections, `exclude` and `map`. You can use the `exclude` section to add the Harvest IDs for projects that you don't want to push time entries to. This is helpful for "Internal" or "Overhead" projects that you don't need to sync with Redmine projects.
-
-The `map` sub-section is where we tell Sumac how a Harvest project ID maps to a Redmine project name. This is optional, but recommended. When a mapping is defined here, Sumac will validate that the Redmine issue number in a Harvest time entry is valid for the corresponding project in Redmine.
+You can use the `exclude` section to add the Harvest IDs for projects that you don't want to push time entries to. This is helpful for "Internal" or "Overhead" projects that you don't need to sync with Redmine projects.
