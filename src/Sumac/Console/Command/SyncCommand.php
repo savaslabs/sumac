@@ -325,32 +325,7 @@ class SyncCommand extends Command
 
             // We can log this entry.
             // Round the hours up to the nearest .25 to simulate what Harvest does.
-            $hours_parts = explode('.', $entry->get('hours'));
-            if (count($hours_parts) == 2) {
-                // Harvest gives us entries like 1.5 instead of 1.50. So tack on an extra 0 if we need.
-                if (strlen($hours_parts[1]) == 1) {
-                    $hours_parts[1] = (int) ($hours_parts[1].'0');
-                }
-                // Now round up as needed.
-                if ($hours_parts[1] == 0) {
-                    // Sample entry 1.0.
-                    // Do nothing.
-                } elseif ($hours_parts[1] > 0 && $hours_parts[1] <= 25) {
-                    // Sample entry: 1.23 -> 1.25.
-                    $hours_parts[1] = 25;
-                } elseif ($hours_parts[1] <= 50) {
-                    // Sample entry: 1.27 -> 1.5.
-                    $hours_parts[1] = 5;
-                } elseif ($hours_parts[1] <= 75) {
-                    // Sample entry: 1.63 -> 1.75.
-                    $hours_parts[1] = 75;
-                } else {
-                    // Sample entry: 0.83 -> 1.00; 1.83 -> 2.00.
-                    $hours_parts[0] = $hours_parts[0] + 1;
-                    $hours_parts[1] = 0;
-                }
-            }
-            $hours = floatval(implode('.', $hours_parts));
+            $hours = ceil(4 * floatval($entry->get('hours'))) / 4;
 
             $params = [
               'issue_id' => $redmine_issue_number,
