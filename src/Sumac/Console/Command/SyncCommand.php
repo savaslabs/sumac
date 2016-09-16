@@ -346,7 +346,7 @@ class SyncCommand extends Command
             'activity_id' => 9,
             'project_id' => $redmine_issue['issue']['project']['id'],
             'hours' => $hours,
-            'comments' => $harvest_entry->get('notes').' [Harvest ID: '.$harvest_entry->get('id').']',
+            'comments' => htmlspecialchars($harvest_entry->get('notes').' [Harvest ID: '.$harvest_entry->get('id').']'),
         ];
     }
 
