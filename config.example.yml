@@ -4,14 +4,9 @@ auth:
     pass: ''
     account: 'chrisrusso'
   redmine:
-    user: 'kostajh'
-    pass: ''
+    apikey: ''
     url: 'http://localhost:9292'
 sync:
-  # Map a Harvest user ID to a redmine user ID. Required.
-  users:
-    785018: "redmine_username"
-    123456: "another_user"
   projects:
     # Exclude Harvest project IDs from time entry processing.
     exclude:

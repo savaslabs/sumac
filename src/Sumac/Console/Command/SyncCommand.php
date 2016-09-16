@@ -2,6 +2,7 @@
 
 namespace Sumac\Console\Command;
 
+use Symfony\Component\Config\Definition\Exception\Exception;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
@@ -33,6 +34,11 @@ class SyncCommand extends Command
      * Maps harvest IDs to Redmine IDs
      */
     protected $projectMap;
+
+    /** @var array
+     * Maps Redmine users to Harvest IDs
+     */
+    protected $userMap;
 
     /** @var \Redmine\Api\Issue */
     protected $issueApi;
@@ -137,8 +143,7 @@ class SyncCommand extends Command
     {
         $this->redmineClient = new Redmine\Client(
             $this->config['auth']['redmine']['url'],
-            $this->config['auth']['redmine']['user'],
-            $this->config['auth']['redmine']['pass']
+            $this->config['auth']['redmine']['apikey']
         );
     }
 
@@ -147,10 +152,9 @@ class SyncCommand extends Command
      */
     protected function populateProjectMap()
     {
-        // TODO: Also get project names for improved log output.
         $this->projectMap = [];
 
-        $projects = $this->redmineClient->project->all();
+        $projects = $this->redmineClient->project->all(['limit' => 1000]);
         foreach ($projects['projects'] as $project) {
             foreach ($project['custom_fields'] as $custom_field) {
                 if ($custom_field['name'] == 'Harvest Project ID' && !empty($custom_field['value'])) {
@@ -161,13 +165,35 @@ class SyncCommand extends Command
                 }
             }
         }
+        if (!count($this->projectMap)) {
+            throw new Exception(('Unable to populate project map!'));
+        }
+    }
+
+    /**
+     * Get a map of Harvest IDs -> Redmine usernames.
+     */
+    protected function populateUserMap()
+    {
+        $this->userMap = [];
+        $users = $this->redmineClient->user->all(['limit' => 1000]);
+        foreach ($users['users'] as $user) {
+            foreach ($user['custom_fields'] as $custom_field) {
+                if ($custom_field['name'] == 'Harvest ID' && !empty($custom_field['value'])) {
+                    $this->userMap[trim($custom_field['value'])] = $user['login'];
+                }
+            }
+        }
+        if (!count($this->userMap)) {
+            throw new Exception('Unable to populate usermap!');
+        }
     }
 
     /**
      * Get all redmine time entries which might need to be synced.
      *
-     * @param \Harvest\Model\Result $projects
-     *                                        Array of harvest projects
+     * @param \Harvest\Model\Result $projects_array
+     *                                              Array of harvest projects
      *
      * @return array
      */
@@ -379,10 +405,10 @@ class SyncCommand extends Command
         }
 
         // If Harvest user is not mapped to a redmine user, throw an error and continue.
-        if (!isset($this->config['sync']['users'][$harvest_entry->get('user-id')])) {
+        if (!isset($this->userMap[$harvest_entry->get('user-id')])) {
             $this->output->writeln(
                 sprintf(
-                    '<error>No mapping is defined for user %d, please adjust config.yml</error>',
+                    '<error>No mapping is defined for user %d</error>',
                     $harvest_entry->get('user-id')
                 )
             );
@@ -399,7 +425,7 @@ class SyncCommand extends Command
         if (!$this->input->getOption('dry-run')) {
             try {
                 $this->redmineClient->setImpersonateUser(
-                    $this->config['sync']['users'][$harvest_entry->get('user-id')]
+                    $this->userMap[$harvest_entry->get('user-id')]
                 );
                 $save_entry_result = $this->saveHarvestTimeEntryToRedmine(
                     $redmine_entry_params,
@@ -482,7 +508,8 @@ class SyncCommand extends Command
         // Map harvest projects to redmine projects.
         $this->populateProjectMap();
 
-        // TODO: Populate usermap
+        // Get map of Redmine users to Harvest IDs.
+        $this->populateUserMap();
 
         // Get Harvest project entries for those found in the project map.
         /** @var \Harvest\Model\Result $projects */
