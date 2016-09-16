@@ -157,10 +157,10 @@ class SyncCommand extends Command
         $projects = $this->redmineClient->project->all(['limit' => 1000]);
         foreach ($projects['projects'] as $project) {
             foreach ($project['custom_fields'] as $custom_field) {
-                if ($custom_field['name'] == 'Harvest Project ID' && !empty($custom_field['value'])) {
+                if ($custom_field['name'] == 'Harvest Project ID(s)' && !empty($custom_field['value'])) {
                     $project_ids = explode(',', $custom_field['value']);
                     foreach ($project_ids as $project_id) {
-                        $this->projectMap[trim($project_id)] = [$project['id'] => $project['name']];
+                        $this->projectMap[trim($project_id)][] = [$project['id'] => $project['name']];
                     }
                 }
             }
@@ -266,23 +266,28 @@ class SyncCommand extends Command
         }
 
         // Validate that issue ID exists in project.
-        if (isset($this->projectMap[$entry->get('project-id')])
-            && key($this->projectMap[$entry->get('project-id')])
-            !== $redmine_issue['issue']['project']['id']
-        ) {
-            // The issue number doesn't belong to the Harvest project we are looking at
-            // time entries for, so continue. It's probably a GitHub issue ref.
-            $this->output->writeln(
-                sprintf(
-                    '<comment>- Skipping entry for %d as it is out of range!</comment>',
-                    $entry->get('id')
-                )
-            );
+        if (isset($this->projectMap[$entry->get('project-id')])) {
+            $found = false;
+            foreach ($this->projectMap[$entry->get('project-id')] as $project) {
+                if (isset($project[$redmine_issue['issue']['project']['id']])) {
+                    $found = true;
+                }
+            }
+            if (!$found) {
+                // The issue number doesn't belong to the Harvest project we are looking at
+                // time entries for, so continue. It's probably a GitHub issue ref.
+                $this->output->writeln(
+                    sprintf(
+                        '<comment>- Skipping entry for %d as it is out of range!</comment>',
+                        $entry->get('id')
+                    )
+                );
 
-            return false;
-        } else {
-            return $redmine_issue;
+                return false;
+            }
         }
+
+        return $redmine_issue;
     }
 
     /**
@@ -535,13 +540,17 @@ class SyncCommand extends Command
 
         // Sync entries.
         foreach ($entries_to_log as $harvest_entry) {
+            $redmine_project_names = [];
+            foreach ($this->projectMap[$harvest_entry->get('project-id')] as $value) {
+                $redmine_project_names[] = current($value);
+            }
+
             $this->output->writeln(
                 sprintf(
-                    '<info>Processing entry: "%s" (%d) in Redmine project %s</info>',
+                    '<info>Processing entry: "%s" (%d) in Redmine project(s) "%s"</info>',
                     $harvest_entry->get('notes'),
                     $harvest_entry->get('id'),
-                    isset($this->projectMap[$harvest_entry->get('project-id')]) ?
-                        current($this->projectMap[$harvest_entry->get('project-id')]) : 'unknown'
+                    implode(',', $redmine_project_names)
                 )
             );
             $this->syncEntry($harvest_entry);
