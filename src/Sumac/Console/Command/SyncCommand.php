@@ -404,8 +404,9 @@ class SyncCommand extends Command
         // Or if there is more than one matching redmine time entry, throw an error and continue.
         if (count($existing_redmine_time_entries) > 1) {
             $this->output->writeln(sprintf(
-                '<error>Multiple Redmine time entries matching harvest time entry %d</error>',
-                $harvest_entry->get('id')
+                '<error>Multiple Redmine time entries matching harvest time entry %d. See entries %s</error>',
+                $harvest_entry->get('id'),
+                json_encode($existing_redmine_time_entries)
             ));
 
             return false;
