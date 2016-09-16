@@ -150,17 +150,13 @@ class SyncCommand extends Command
         // TODO: Also get project names for improved log output.
         $this->projectMap = [];
 
-        if (!$this->redmineClient) {
-            $this->setRedmineClient();
-        }
-
         $projects = $this->redmineClient->project->all();
         foreach ($projects['projects'] as $project) {
             foreach ($project['custom_fields'] as $custom_field) {
                 if ($custom_field['name'] == 'Harvest Project ID' && !empty($custom_field['value'])) {
                     $project_ids = explode(',', $custom_field['value']);
                     foreach ($project_ids as $project_id) {
-                        $this->projectMap[trim($project_id)] = $project['id'];
+                        $this->projectMap[trim($project_id)] = [$project['id'] => $project['name']];
                     }
                 }
             }
@@ -245,7 +241,7 @@ class SyncCommand extends Command
 
         // Validate that issue ID exists in project.
         if (isset($this->projectMap[$entry->get('project-id')])
-            && $this->projectMap[$entry->get('project-id')]
+            && key($this->projectMap[$entry->get('project-id')])
             !== $redmine_issue['issue']['project']['id']
         ) {
             // The issue number doesn't belong to the Harvest project we are looking at
@@ -518,7 +514,7 @@ class SyncCommand extends Command
                     $harvest_entry->get('notes'),
                     $harvest_entry->get('id'),
                     isset($this->projectMap[$harvest_entry->get('project-id')]) ?
-                        $this->projectMap[$harvest_entry->get('project-id')] : 'unknown'
+                        current($this->projectMap[$harvest_entry->get('project-id')]) : 'unknown'
                 )
             );
             $this->syncEntry($harvest_entry);
