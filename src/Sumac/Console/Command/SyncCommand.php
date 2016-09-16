@@ -313,7 +313,9 @@ class SyncCommand extends Command
         if (isset($redmine_time_entries['total_count']) && $redmine_time_entries['total_count'] > 0) {
             // There might be a match.
             foreach ($redmine_time_entries['time_entries'] as $redmine_time_entry) {
-                if (strpos(
+                // TODO: There should always be a comment in the time entry,
+                // but this is not the case for time entry ID 3494 and others.
+                if (isset($redmine_time_entry['comments']) && strpos(
                     $redmine_time_entry['comments'],
                     $harvest_entry->get('id')
                 ) !== false) {
