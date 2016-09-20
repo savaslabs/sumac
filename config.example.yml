@@ -2,10 +2,10 @@ auth:
   harvest:
     mail: 'kosta@savaslabs.com'
     pass: ''
-    account: 'chrisrusso'
+    account: 'savaslabs'
   redmine:
     apikey: ''
-    url: 'http://localhost:9292'
+    url: 'https://local.pm.savaslabs.com'
 sync:
   projects:
     # Exclude Harvest project IDs from time entry processing.
