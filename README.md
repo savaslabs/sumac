@@ -8,7 +8,7 @@ How does it work? Log a time entry in Harvest and say "Worked on issue #123". Ru
 
 ## Running with Docker
 
-Within the `sumac` directory, run `docker run --net redmine_default -it --rm -v $(pwd):/usr/src/sumac savaslabs/sumac sync -u 20160915:20160915`.
+Within the `sumac` directory, run `docker run --net redmine_default -it --rm -v $(pwd):/tmp/sumac savaslabs/sumac sync -c /tmp/sumac/config.yml -u 20160915:20160915`.
 
 Adjust the `--net redmine_default` parameter to match the network your Redmine instance is running on  (use `docker network ls` to find the correct value).
 

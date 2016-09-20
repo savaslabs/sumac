@@ -72,6 +72,12 @@ class SyncCommand extends Command
                         null,
                         'Do a simulation of what would happen'
                     ),
+                    new InputOption(
+                        'config',
+                        'c',
+                        InputOption::VALUE_OPTIONAL,
+                        'Path to configuration file. Leave empty if config.yml is in repository root.'
+                    ),
                 ]
             )
             ->setDescription('Pushes time entries from Harvest to Redmine');
@@ -108,13 +114,21 @@ class SyncCommand extends Command
      */
     private function setConfig()
     {
+        if ($config_path = $this->input->getOption('config')) {
+            if (!file_exists($config_path)) {
+                throw new \Exception(sprintf('Could not find the config.yml file at %s', $config_path));
+            }
+        } else {
+            $config_path = 'config.yml';
+        }
+
         // Load the configuration.
         $yaml = new Yaml();
-        if (!file_exists('config.yml')) {
+        if (!file_exists($config_path)) {
             throw new \Exception('Could not find a config.yml file.');
         }
         try {
-            $this->config = $yaml->parse(file_get_contents('config.yml'), true);
+            $this->config = $yaml->parse(file_get_contents($config_path), true);
         } catch (\Exception $e) {
             $this->output->writeln(
                 sprintf(

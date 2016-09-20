@@ -1,8 +1,8 @@
-FROM php:5.6.26-cli
+FROM composer/composer:1.1
 MAINTAINER Kosta Harlan <kosta@savaslabs.com>
 
-RUN echo "date.timezone = \"America/New_York\"" > /usr/local/etc/php/php.ini
-COPY . /usr/src/sumac
-WORKDIR /usr/src/sumac
+COPY . /app
+WORKDIR /app
+RUN composer install -n --prefer-dist
 
 ENTRYPOINT ["php", "sumac.php"]
