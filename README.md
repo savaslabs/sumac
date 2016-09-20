@@ -6,6 +6,10 @@ A simple command line utility for pulling Harvest entries and pushing them into 
 
 How does it work? Log a time entry in Harvest and say "Worked on issue #123". Run `php sumac.php sync 20151202` and the app will pull your time entry from Harvest and create a new time entry in Redmine.
 
+## Running with Docker
+
+Within the `sumac` directory, run `docker run --net redmine_default -it --rm --name sumac -v "$PWD":/usr/src/sumac -w /usr/src/sumac php:5.6-cli php sumac.php sync -u 20160915:20160915`. Adjust the `--net redmine_default` parameter to match the network your Redmine instance is running on  (use `docker network ls` to find the correct value).
+
 ## Requirements
 
 - Redmine 3
@@ -29,8 +33,6 @@ You may also use the `--dry-run` flag to not actually post any data to Redmine.
 
 Use the `--update` option if you'd like to make updates to existing Redmine time entries. This is helpful if a user has gone back into Harvest and adjusted wording for Redmine issue descriptions, or time amounts, etc.
 
-Lastly, consider defaulting to the `--strict` option which will only post time entries to Redmine if a mapping is defined between the Harvest project ID and a Redmine project name.
-
 ## Configuration
 
 Copy `config.example.yml` to `config.yml`.
@@ -41,17 +43,9 @@ Fill in your credentials for Harvest and Redmine. The user account should have a
 
 ### Redmine configuration
 
-Sumac will look for a custom redmine project field called `Harvest Project ID`, and use the values of that field to populate the mapping between Redmine projects and Harvest projects. You'll need to create this field if it doesn't exist, and also populate it for each project which you want to sync properly.
+Sumac will look for a custom redmine project field called `Harvest Project ID(s)`, and use the values of that field to populate the mapping between Redmine projects and Harvest projects. You'll need to create this field if it doesn't exist, and also populate it for each project which you want to sync properly.
 
 ### Sync settings
-
-There are two major sections, `users` and `projects`.
-
-#### Users
-
-This is where we tell Sumac how a Harvest user ID (a number like `785018`) maps to a Redmine username (N.B., the username, not their numeric ID).
-
-This app won't push time entries into Harvest unless it can find a match between the user's Harvest ID in this section, so make sure you fill it out.
 
 #### Projects
 
