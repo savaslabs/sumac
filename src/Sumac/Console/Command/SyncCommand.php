@@ -282,6 +282,12 @@ class SyncCommand extends Command
         // Strip the leading '#', and take the first entry.
         $redmine_issue_number = reset($redmine_issue_numbers);
         $redmine_issue_number = str_replace('#', '', $redmine_issue_number);
+        if (!$redmine_issue_number) {
+            // The resulting value is not a number.
+            $this->output->writeln('<comment>Skipping entry, it does not look like there is an issue number here.');
+
+            return false;
+        }
 
         $redmine_issue = $this->issueApi->show($redmine_issue_number);
 
@@ -311,10 +317,11 @@ class SyncCommand extends Command
                 // time entries for, so continue. It's probably a GitHub issue ref.
                 $this->output->writeln(
                     sprintf(
-                        '<comment>- Skipping entry for %d as it is out of range!</comment>',
+                        '<error>- Skipping entry for %d as it is out of range!</error>',
                         $entry->get('id')
                     )
                 );
+                $this->errors = true;
 
                 return false;
             }
