@@ -235,10 +235,10 @@ class SyncCommand extends Command
         foreach ($projects_array as $projects) {
             /** @var $projects \Harvest\Model\Project */
             $project = $projects->get('data');
-            if (in_array(
+            if ((isset($this->config['sync']['projects']['exclude'])) && (in_array(
                 $project->get('id'),
                 $this->config['sync']['projects']['exclude']
-            )) {
+            ))) {
                 $this->output->writeln(
                     sprintf(
                         '<comment>- Skipping project %s, in exclude list</comment>',
