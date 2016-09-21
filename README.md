@@ -12,6 +12,18 @@ Within the `sumac` directory, run `docker run --net redmine_default -it --rm -v 
 
 Adjust the `--net redmine_default` parameter to match the network your Redmine instance is running on  (use `docker network ls` to find the correct value).
 
+If you are developing, you'll want to run `composer install` on the host, then:
+
+```
+docker run -e SUMAC_HARVEST_MAIL=kosta@savaslabs.com --net redmine_default -it --rm -v $(pwd):/usr/src/sumac savaslabs/sumac sync -u 20160915:20160915
+```
+
+You can also use environment variables to set the configuration:
+
+``` bash
+docker run -e SUMAC_HARVEST_MAIL=someone@savaslabs.com -e SUMAC_HARVEST_PASS=supersecret -e SUMAC_HARVEST_ACCOUNT=someaccount -e SUMAC_REDMINE_APIKEY=verysecret -e SUMAC_REDMINE_URL=https://app -e SUMAC_SYNC_PROJECTS_EXCLUDE=123,456 --net redmine_default -it --rm savaslabs/sumac sync -u 20160915:20160915
+```
+
 ## Requirements
 
 - Redmine 3
