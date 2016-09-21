@@ -25,6 +25,8 @@ class SyncCommand extends Command
     private $output;
     /** @var array */
     private $config;
+    /** @var bool */
+    private $errors;
     /** @var \Redmine\Client */
     private $redmineClient;
     /** @var \Harvest\HarvestAPI */
@@ -291,6 +293,7 @@ class SyncCommand extends Command
                     $redmine_issue_number
                 )
             );
+            $this->errors = true;
 
             return false;
         }
@@ -438,6 +441,7 @@ class SyncCommand extends Command
                 $harvest_entry->get('id'),
                 json_encode($existing_redmine_time_entries)
             ));
+            $this->errors = true;
 
             return false;
         }
@@ -450,6 +454,7 @@ class SyncCommand extends Command
                     $harvest_entry->get('user-id')
                 )
             );
+            $this->errors = true;
 
             return false;
         }
@@ -524,6 +529,7 @@ class SyncCommand extends Command
         // Set input/output for use in other methods.
         $this->input = $input;
         $this->output = $output;
+        $this->errors = false;
 
         // Set the Harvest Range.
         $this->setRange($input);
@@ -589,6 +595,9 @@ class SyncCommand extends Command
             $this->syncEntry($harvest_entry);
         }
 
+        if ($this->errors) {
+            throw new Exception('Errors occurred during sync. See the logs.');
+        }
         $output->writeln('<question>All done!</question>');
     }
 }
