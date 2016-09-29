@@ -42,12 +42,6 @@ class SyncCommand extends Command
      */
     protected $userMap;
 
-    /** @var \Redmine\Api\Issue */
-    protected $issueApi;
-
-    /** @var \Redmine\Api\TimeEntry */
-    protected $timeEntryApi;
-
     /**
      * {@inheritdoc}
      */
@@ -186,6 +180,7 @@ class SyncCommand extends Command
     {
         $this->projectMap = [];
 
+        $this->setRedmineClient();
         $projects = $this->redmineClient->project->all(['limit' => 1000]);
         foreach ($projects['projects'] as $project) {
             foreach ($project['custom_fields'] as $custom_field) {
@@ -208,6 +203,7 @@ class SyncCommand extends Command
     protected function populateUserMap()
     {
         $this->userMap = [];
+        $this->setRedmineClient();
         $users = $this->redmineClient->user->all(['limit' => 1000]);
         foreach ($users['users'] as $user) {
             foreach ($user['custom_fields'] as $custom_field) {
@@ -289,7 +285,9 @@ class SyncCommand extends Command
             return false;
         }
 
-        $redmine_issue = $this->issueApi->show($redmine_issue_number);
+        $this->setRedmineClient();
+        $issue_api = new Redmine\Api\Issue($this->redmineClient);
+        $redmine_issue = $issue_api->show($redmine_issue_number);
 
         if (!$redmine_issue || !isset($redmine_issue['issue']['project']['id'])) {
             // Issue doesn't exist in Redmine; this is probably a GitHub issue reference.
@@ -347,7 +345,9 @@ class SyncCommand extends Command
             'limit' => 10000,
         ];
 
-        $redmine_time_entries = $this->timeEntryApi->all($redmine_search_params);
+        $this->setRedmineClient();
+        $time_entry_api = new Redmine\Api\TimeEntry($this->redmineClient);
+        $redmine_time_entries = $time_entry_api->all($redmine_search_params);
         $matching_entries = [];
 
         if (isset($redmine_time_entries['total_count']) && $redmine_time_entries['total_count'] > 0) {
@@ -404,11 +404,12 @@ class SyncCommand extends Command
         array $redmine_time_entry_params,
         array $existing_redmine_time_entries
     ) {
+        $time_entry_api = new Redmine\Api\TimeEntry($this->redmineClient);
         if (count($existing_redmine_time_entries) === 0) {
-            $this->timeEntryApi->create($redmine_time_entry_params);
+            $time_entry_api->create($redmine_time_entry_params);
         } else {
             // Update existing entry.
-            $this->timeEntryApi->update(
+            $time_entry_api->update(
                 $existing_redmine_time_entries[0]['id'],
                 $redmine_time_entry_params
             );
@@ -472,6 +473,7 @@ class SyncCommand extends Command
             $harvest_entry
         );
         $save_entry_result = false;
+        $this->setRedmineClient();
         if (!$this->input->getOption('dry-run')) {
             try {
                 $this->redmineClient->setImpersonateUser(
@@ -553,8 +555,6 @@ class SyncCommand extends Command
 
         // Initialize the Redmine client.
         $this->setRedmineClient();
-        $this->issueApi = new Redmine\Api\Issue($this->redmineClient);
-        $this->timeEntryApi = new Redmine\Api\TimeEntry($this->redmineClient);
 
         // Map harvest projects to redmine projects.
         $this->populateProjectMap();

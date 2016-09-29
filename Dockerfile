@@ -1,4 +1,4 @@
-FROM composer/composer:1.1-php5-alpine
+FROM composer/composer:1.1-alpine
 MAINTAINER Kosta Harlan <kosta@savaslabs.com>
 
 COPY . /usr/src/sumac
