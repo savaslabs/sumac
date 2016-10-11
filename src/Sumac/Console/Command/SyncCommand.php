@@ -533,7 +533,16 @@ class SyncCommand extends Command
                 $harvest_id,
                 implode(' - ', $project_names)
             ));
-            $project_data[] = $this->harvestClient->getProject($harvest_id);
+            $project_data_result = $this->harvestClient->getProject($harvest_id);
+            if ($project_data_result->get('code') !== 200) {
+                $this->output->writeln(sprintf(
+                    '- <error>Could not get project data for Harvest ID %d associated with Redmine project %s!',
+                    $harvest_id,
+                    implode(' - ', $project_names)
+                ));
+                continue;
+            }
+            $project_data[] = $project_data_result;
         }
 
         return $project_data;
