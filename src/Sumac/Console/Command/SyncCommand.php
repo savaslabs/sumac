@@ -308,8 +308,10 @@ class SyncCommand extends Command
 
         // Validate that issue ID exists in project.
         if (isset($this->projectMap[$entry->get('project-id')])) {
+            $project_names = [];
             $found = false;
             foreach ($this->projectMap[$entry->get('project-id')] as $project) {
+                $project_names[] = current($project);
                 if (isset($project[$redmine_issue['issue']['project']['id']])) {
                     $found = true;
                 }
@@ -319,8 +321,10 @@ class SyncCommand extends Command
                 // time entries for, so continue. It's probably a GitHub issue ref.
                 $this->output->writeln(
                     sprintf(
-                        '<error>- Skipping entry for %d as it is out of range!</error>',
-                        $entry->get('id')
+                        '<error>- Issue %d does not exist in the Redmine project(s) %s. Time entry: \'%s\'</error>',
+                        $redmine_issue_number,
+                        implode(',', $project_names),
+                        $entry->toXML()
                     )
                 );
                 $this->errors = true;
