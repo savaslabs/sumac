@@ -233,6 +233,10 @@ class SyncCommand extends Command
         foreach ($projects_array as $projects) {
             /** @var $projects \Harvest\Model\Project */
             $project = $projects->get('data');
+            if (!is_object($project)) {
+                $this->output->writeln('- <error>Could not get project data!');
+                continue;
+            }
             if ((isset($this->config['sync']['projects']['exclude'])) && (in_array(
                 $project->get('id'),
                 $this->config['sync']['projects']['exclude']
@@ -520,9 +524,14 @@ class SyncCommand extends Command
     {
         $project_data = [];
         foreach ($this->projectMap as $harvest_id => $project) {
+            $project_names = [];
+            foreach ($project as $key => $projects) {
+                $project_names[] = current($projects);
+            }
             $this->output->writeln(sprintf(
-                '<info>Getting data for Harvest project %d</info>',
-                $harvest_id
+                '<info>Getting data for Harvest project %d from project %s</info>',
+                $harvest_id,
+                implode(' - ', $project_names)
             ));
             $project_data[] = $this->harvestClient->getProject($harvest_id);
         }
