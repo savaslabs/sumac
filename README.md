@@ -21,7 +21,7 @@ docker run -e SUMAC_HARVEST_MAIL=kosta@savaslabs.com --net redmine_default -it -
 You can also use environment variables to set the configuration:
 
 ``` bash
-docker run -e SUMAC_HARVEST_MAIL=someone@savaslabs.com -e SUMAC_HARVEST_PASS=supersecret -e SUMAC_HARVEST_ACCOUNT=someaccount -e SUMAC_REDMINE_APIKEY=verysecret -e SUMAC_REDMINE_URL=https://app -e SUMAC_SYNC_PROJECTS_EXCLUDE=123,456 --net redmine_default -it --rm savaslabs/sumac sync -u 20160915:20160915
+docker run -e SUMAC_HARVEST_MAIL=someone@savaslabs.com -e SUMAC_HARVEST_PASS=supersecret -e SUMAC_HARVEST_ACCOUNT=someaccount -e SUMAC_REDMINE_APIKEY=verysecret -e SUMAC_REDMINE_URL=http://app:3000 -e SUMAC_SYNC_PROJECTS_EXCLUDE=123,456 --net redmine_default -it --rm savaslabs/sumac sync -u 20160915:20160915
 ```
 
 ## Requirements

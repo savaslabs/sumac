@@ -6,7 +6,8 @@
         "symfony/console": "^3.0",
         "nesbot/carbon": "^1.21",
         "phpro/grumphp": "^0.6.0",
-        "friendsofphp/php-cs-fixer": "^1.12"
+        "friendsofphp/php-cs-fixer": "^1.12",
+        "guzzlehttp/guzzle": "6.*"
     },
     "autoload": {
         "psr-4": {
