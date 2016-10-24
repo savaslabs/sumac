@@ -1,15 +1,51 @@
 auth:
   harvest:
-    mail: 'kosta@savaslabs.com'
-    pass: ''
+    mail: 'mail'
+    pass: 'password'
     account: 'savaslabs'
   redmine:
-    apikey: ''
-    url: 'https://local.pm.savaslabs.com'
+    apikey: 'apiKey'
+    url: 'https://pm.savaslabs.com'
+  slack:
+    webhook_url: 'url'
+    # Set debug-user to a slack username to route all slack notifications to that user.
+    # debug-user: '@tim'
 sync:
-  projects:
-    # Exclude Harvest project IDs from time entry processing.
-    exclude:
-      - "5990760"
-      - "7077045"
-      - "7174765"
+ projects:
+   # Exclude Harvest project IDs from time entry processing.
+   exclude:
+     - "5990760"
+     - "7077045"
+     - "7174765"
+spellcheck:
+  custom_words:
+    - Tim
+    - Anne
+    - Dan
+    - Yonas
+    - Oksana
+    - Chris
+    - Kosta
+    - Ro
+    - Lisa
+    - API
+    - drupal
+    - drush
+    - readme
+    - repo
+    - php
+    - mitpress
+    - omega
+    - hptn
+    - refactoring
+    - dockerization
+    - dockerize
+    - dockerizing
+    - dockerized
+    - behat
+    - dockerize
+    - redmine
+    - github
+    - Remy
+    - dev
+    - js

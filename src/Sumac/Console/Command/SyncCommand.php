@@ -237,30 +237,69 @@ class SyncCommand extends Command
             'missing-issue' => 'Time entries where no matching redmine issue was found',
             'issue-not-in-project' => 'Matching redmine issue found, but it was in a different project',
             'spelling' => 'Possible spelling errors',
+            'rounding' => 'Possible rounding errors',
         ];
 
-        $error_message_formatters = array(
+        $error_message_formatters = [
             'no-issue-number' => function ($error) {
-                return sprintf('%s -- %s', $error['date'], $error['entry']);
+                return sprintf(
+                    '%s (%s) -- %s',
+                    $error['entry']->get('project-id'),
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes')
+                );
             },
             'missing-issue' => function ($error) {
-                return sprintf('%s -- %s', $error['date'], $error['entry']);
+                return sprintf(
+                    '%s -- %s',
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes')
+                );
             },
             'issue-not-in-project' => function ($error) {
-                return sprintf('%s -- %s', $error['date'], $error['entry']);
+                return sprintf(
+                    '%s -- %s',
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes')
+                );
             },
             'spelling' => function ($error) {
                 return sprintf(
                     "%s -- %s\n_Potential misspellings: %s_\n",
-                    $error['date'],
-                    $error['entry'],
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes'),
                     implode(', ', $error['spelling-errors'])
                 );
             },
-        );
+            'rounding' => function ($error) {
+                return sprintf(
+                    "%s -- %s\nHours were: %.2f, should be %.2f",
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes'),
+                    $error['entry']->get('hours'),
+                    $error['rounded-hours']
+                );
+            },
+        ];
 
         $fields = [];
         foreach ($errors as $category => $errors_array) {
+            // Sort errors by date.
+            usort(
+                $errors_array,
+                function ($a, $b) {
+                    $a_date = new \DateTime($a['entry']->get('spent-at'));
+                    $b_date = new \DateTime($b['entry']->get('spent-at'));
+                    if ($a_date < $b_date) {
+                        return -1;
+                    } elseif ($b_date < $a_date) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                }
+            );
+
             $fields[] = [
                 'title' => $error_category_titles[$category],
                 'value' => implode("\n", array_map($error_message_formatters[$category], $errors_array)),
@@ -345,9 +384,14 @@ class SyncCommand extends Command
                     $this->userMap[trim($custom_field['value'])] = $user['login'];
                 }
                 if ($custom_field['name'] == 'Slack ID' && !empty($custom_field['value'])) {
-                    $this->slackUserMap[$user['login']] = trim($custom_field['value']);
+                    $redmine_slack_user_map[$user['login']] = trim($custom_field['value']);
                 }
             }
+        }
+
+        $redmine_harvest_map = array_flip($this->userMap);
+        foreach ($redmine_slack_user_map as $redmine_user => $slack_user) {
+            $this->slackUserMap[$redmine_harvest_map[$redmine_user]] = $slack_user;
         }
         if (!count($this->userMap)) {
             throw new Exception('Unable to populate usermap!');
@@ -419,11 +463,11 @@ class SyncCommand extends Command
         // Strip the leading '#', and take the first entry.
         $redmine_issue_number = reset($redmine_issue_numbers);
         $redmine_issue_number = str_replace('#', '', $redmine_issue_number);
+
         if (!$redmine_issue_number) {
             // The resulting value is not a number.
             $this->userTimeEntryErrors[$entry->get('user-id')]['no-number'][] = [
-                'date' => $entry->get('created-at'),
-                'entry' => $entry->get('notes'),
+                'entry' => $entry,
             ];
             $this->output->writeln('<comment>Skipping entry, it does not look like there is an issue number here.');
 
@@ -437,8 +481,7 @@ class SyncCommand extends Command
         if (!$redmine_issue || !isset($redmine_issue['issue']['project']['id'])) {
             // Issue doesn't exist in Redmine; this is probably a GitHub issue reference.
             $this->userTimeEntryErrors[$entry->get('user-id')]['missing-issue'][] = [
-                'date' => $entry->get('created-at'),
-                'entry' => $entry->get('notes'),
+                'entry' => $entry,
             ];
             $this->output->writeln(
                 sprintf(
@@ -465,8 +508,7 @@ class SyncCommand extends Command
                 // The issue number doesn't belong to the Harvest project we are looking at
                 // time entries for, so continue. It's probably a GitHub issue ref.
                 $this->userTimeEntryErrors[$entry->get('user-id')]['issue-not-in-project'][] = [
-                    'date' => $entry->get('created-at'),
-                    'entry' => $entry->get('notes'),
+                    'entry' => $entry,
                 ];
                 $this->output->writeln(
                     sprintf(
@@ -594,8 +636,7 @@ class SyncCommand extends Command
         }
         if ($spelling_errors) {
             $this->userTimeEntryErrors[$harvest_entry->get('user-id')]['spelling'][] = [
-                'date' => $harvest_entry->get('created-at'),
-                'entry' => $harvest_entry->get('notes'),
+                'entry' => $harvest_entry,
                 'spelling-errors' => $spelling_errors,
             ];
         }
@@ -645,6 +686,15 @@ class SyncCommand extends Command
             $redmine_issue,
             $harvest_entry
         );
+
+        // Check rounding.
+        if ($redmine_entry_params['hours'] != $harvest_entry->get('hours')) {
+            $this->userTimeEntryErrors[$harvest_entry->get('user-id')]['rounding'][] = [
+                'entry' => $harvest_entry,
+                'rounded-hours' => $redmine_entry_params['hours'],
+            ];
+        }
+
         $save_entry_result = false;
         $this->setRedmineClient();
         if (!$this->input->getOption('dry-run')) {
