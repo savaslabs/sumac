@@ -4,38 +4,42 @@
 
 A simple command line utility for pulling Harvest entries and pushing them into Redmine. Harvest, Redmine, a red harvest... sumac.
 
-How does it work? Log a time entry in Harvest and say "Worked on issue #123". Run `php sumac.php sync 20151202` and the app will pull your time entry from Harvest and create a new time entry in Redmine.
+How does it work? Log a time entry in Harvest and say "Worked on issue #123".
 
-## Running with Docker
+## Running with Docker (recommended)
 
-Within the `sumac` directory, run `docker run --net redmine_default -it --rm -v $(pwd):/tmp/sumac savaslabs/sumac sync -c /tmp/sumac/config.yml -u 20160915:20160915`.
+#### In production
+
+You do not need to clone the repo in production. Instead pull the `savaslabs/sumac` image from docker hub and run it. Create a new blank directory and populate it with a `config.yml` file, using the example in `config.example.yml`.
+
+Run `docker run --rm -v $(pwd):/tmp/sumac savaslabs/sumac sync -c /tmp/sumac/config.yml -u 20160915:20160916` (or whatever other date range). Add `--dry-run` to test.
+
+#### For local development
+
+Spin up redmine locally.
+
+Copy `config.example.yml` to `config.yml` and fill in any values (particularly, you'll need the Slack webhook URL if you want to test slack integration). You'll also need to fill in some harvest credentials which have the proper permissions.
+
+**BUILD THE DOCKER CONTAINER LOCALLY** so you pull in any updates. Run `docker build -t savaslabs/sumac:dev .`, and then use the `:dev` tag when you're running the container in testing (as in the example below).
+
+You may also need to run `composer install` locally so that your `vendor` directory catches the dependencies.
+
+Within the `sumac` directory, run `docker run --net redmine_default -it --rm -v $(pwd):/usr/src/sumac savaslabs/sumac:dev sync -u 20160915:20160916`.
 
 Adjust the `--net redmine_default` parameter to match the network your Redmine instance is running on  (use `docker network ls` to find the correct value).
 
-If you are developing, you'll want to run `composer install` on the host, then:
-
-```
-docker run -e SUMAC_HARVEST_MAIL=kosta@savaslabs.com --net redmine_default -it --rm -v $(pwd):/usr/src/sumac savaslabs/sumac sync -u 20160915:20160915
-```
-
-You can also use environment variables to set the configuration:
-
-``` bash
-docker run -e SUMAC_HARVEST_MAIL=someone@savaslabs.com -e SUMAC_HARVEST_PASS=supersecret -e SUMAC_HARVEST_ACCOUNT=someaccount -e SUMAC_REDMINE_APIKEY=verysecret -e SUMAC_REDMINE_URL=https://app -e SUMAC_SYNC_PROJECTS_EXCLUDE=123,456 --net redmine_default -it --rm savaslabs/sumac sync -u 20160915:20160915
-```
+If you are developing, you'll want to run `composer install` on the host, to get grumphp and phpcs locally.
 
 ## Requirements
 
 - Redmine 3
 - Admin access to Harvest and Redmine
+- PHP pspell package installed locally (for non-docker usage)
+- Composer locally (for non-docker usage)
 
 Please use the `--dry-run` option to confirm changes. Always back up your database before running. Things might break.
 
 ## Usage
-
-### Crontab
-
-Recommended usage is via a crontab entry, once a day at a time when no timers are running. You'll want to call the app like so: `php sumac.php sync`.
 
 ### Standalone
 
@@ -47,9 +51,7 @@ You may also use the `--dry-run` flag to not actually post any data to Redmine.
 
 Use the `--update` option if you'd like to make updates to existing Redmine time entries. This is helpful if a user has gone back into Harvest and adjusted wording for Redmine issue descriptions, or time amounts, etc.
 
-## Configuration
-
-Copy `config.example.yml` to `config.yml`.
+Use the `--slack-notify` flag if you'd like to send notifications to users about potential errors in their time entries.
 
 ### Redmine and Harvest Authorization
 

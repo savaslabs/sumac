@@ -42,6 +42,21 @@ class SyncCommand extends Command
      */
     protected $userMap;
 
+    /** @var array
+     * Maps Harvest IDs to Slack usernames
+     */
+    protected $slackUserMap;
+
+    /** @var array
+     * Store error notifications by Harvest user ID
+     */
+    protected $userTimeEntryErrors;
+
+    /** @var int
+     * Store PSpell dictionary identifier so we don't have to reload each time
+     */
+    protected $pspellLink;
+
     /**
      * {@inheritdoc}
      */
@@ -74,9 +89,28 @@ class SyncCommand extends Command
                         InputOption::VALUE_OPTIONAL,
                         'Path to configuration file. Leave empty if config.yml is in repository root.'
                     ),
+                    new InputOption(
+                        'slack-notify',
+                        null,
+                        null,
+                        'If set, will attempt to send Slack notifications to users about errors in their time entries.'
+                    ),
                 ]
             )
             ->setDescription('Pushes time entries from Harvest to Redmine');
+
+        $this->userTimeEntryErrors = array();
+    }
+
+    /**
+     * Set up custom PSpell dictionary.
+     */
+    private function configurePSpell()
+    {
+        $this->pspellLink = pspell_new('en');
+        foreach ($this->config['spellcheck']['custom_words'] as $word) {
+            pspell_add_to_session($this->pspellLink, $word);
+        }
     }
 
     /**
@@ -126,6 +160,7 @@ class SyncCommand extends Command
         if ($env_vars) {
             return;
         }
+
         if ($config_path = $this->input->getOption('config')) {
             if (!file_exists($config_path)) {
                 throw new \Exception(sprintf('Could not find the config.yml file at %s', $config_path));
@@ -174,6 +209,144 @@ class SyncCommand extends Command
     }
 
     /**
+     * Logs errors to slack for a given harvest user.
+     */
+    protected function logErrorsToSlack($harvest_id, array $errors)
+    {
+        if (isset($this->config['auth']['slack']['debug-user'])) {
+            $slack_id = $this->config['auth']['slack']['debug-user'];
+        } else {
+            $slack_id = $this->slackUserMap[$harvest_id];
+        }
+        if (empty($slack_id)) {
+            $this->output->writeln(
+                sprintf(
+                    '<warning>Slack user not defined for harvest user %s.</warning>',
+                    $harvest_id
+                )
+            );
+
+            return;
+        }
+        if (isset($this->config['auth']['slack']['webhook_url'])) {
+            $slack_url = $this->config['auth']['slack']['webhook_url'];
+        } else {
+            $this->output->writeln(
+                '<warning>Slack webhook URL not configured. Errors will not be logged to slack.</warning>'
+            );
+
+            return;
+        }
+
+        $error_category_titles = [
+            'no-issue-number' => 'Time entries with no issue number',
+            'missing-issue' => 'Time entries where no matching redmine issue was found',
+            'issue-not-in-project' => 'Matching redmine issue found, but it was in a different project',
+            'spelling' => 'Possible spelling errors',
+            'rounding' => 'Possible rounding errors',
+        ];
+
+        $error_message_formatters = [
+            'no-issue-number' => function ($error) {
+                return sprintf(
+                    '%s (%s) -- %s',
+                    $error['entry']->get('project-id'),
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes')
+                );
+            },
+            'missing-issue' => function ($error) {
+                return sprintf(
+                    '%s -- %s',
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes')
+                );
+            },
+            'issue-not-in-project' => function ($error) {
+                return sprintf(
+                    '%s -- %s',
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes')
+                );
+            },
+            'spelling' => function ($error) {
+                return sprintf(
+                    "%s -- %s\n_Potential misspellings: %s_\n",
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes'),
+                    implode(', ', $error['spelling-errors'])
+                );
+            },
+            'rounding' => function ($error) {
+                return sprintf(
+                    "%s -- %s\nHours were: %.2f, should be %.2f",
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes'),
+                    $error['entry']->get('hours'),
+                    $error['rounded-hours']
+                );
+            },
+        ];
+
+        $fields = [];
+        foreach ($errors as $category => $errors_array) {
+            // Sort errors by date.
+            usort(
+                $errors_array,
+                function ($a, $b) {
+                    $a_date = new \DateTime($a['entry']->get('spent-at'));
+                    $b_date = new \DateTime($b['entry']->get('spent-at'));
+                    if ($a_date < $b_date) {
+                        return -1;
+                    } elseif ($b_date < $a_date) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                }
+            );
+
+            $fields[] = [
+                'title' => $error_category_titles[$category],
+                'value' => implode("\n", array_map($error_message_formatters[$category], $errors_array)),
+            ];
+        }
+
+        // Set time of day so slackbot can be a bit more conversational.
+        $hour = date('H', time());
+        if ($hour > 6 && $hour <= 11) {
+            $greeting = 'Good morning';
+        } elseif ($hour > 11 && $hour <= 16) {
+            $greeting = 'Good afternoon';
+        } elseif ($hour > 16 && $hour <= 23) {
+            $greeting = 'Good evening';
+        } else {
+            $greeting = 'Sumac never sleeps';
+        }
+
+        $client = new \GuzzleHttp\Client();
+        $res = $client->request('POST', $slack_url, [
+            'body' => json_encode([
+                'username' => 'Sumac',
+                'channel' => $slack_id,
+                'text' => sprintf(
+                    '%s %s! Here is a list of potential errors detected in your harvest time entries.',
+                    $greeting,
+                    $slack_id
+                ),
+                'attachments' => [
+                    [
+                        'fallback' => 'Unfortunately your client can not display this attachment.',
+                        'color' => 'warning',
+                        'fields' => $fields,
+                        'mrkdwn_in' => ['fields'],
+                    ],
+                ],
+            ]),
+        ]);
+    }
+
+    /**
      * Pull projects from Redmine and populate redmine/harvest map.
      */
     protected function populateProjectMap()
@@ -182,12 +355,18 @@ class SyncCommand extends Command
 
         $this->setRedmineClient();
         $projects = $this->redmineClient->project->all(['limit' => 1000]);
-        foreach ($projects['projects'] as $project) {
-            foreach ($project['custom_fields'] as $custom_field) {
-                if ($custom_field['name'] == 'Harvest Project ID(s)' && !empty($custom_field['value'])) {
-                    $project_ids = explode(',', $custom_field['value']);
-                    foreach ($project_ids as $project_id) {
-                        $this->projectMap[trim($project_id)][] = [$project['id'] => $project['name']];
+        if (!isset($projects['projects'])) {
+            $this->output->writeln(
+                '<error>Invalid project list returned from API. Possible that API token is not set correctly.</error>'
+            );
+        } else {
+            foreach ($projects['projects'] as $project) {
+                foreach ($project['custom_fields'] as $custom_field) {
+                    if ($custom_field['name'] == 'Harvest Project ID(s)' && !empty($custom_field['value'])) {
+                        $project_ids = explode(',', $custom_field['value']);
+                        foreach ($project_ids as $project_id) {
+                            $this->projectMap[trim($project_id)][] = [$project['id'] => $project['name']];
+                        }
                     }
                 }
             }
@@ -210,7 +389,15 @@ class SyncCommand extends Command
                 if ($custom_field['name'] == 'Harvest ID' && !empty($custom_field['value'])) {
                     $this->userMap[trim($custom_field['value'])] = $user['login'];
                 }
+                if ($custom_field['name'] == 'Slack ID' && !empty($custom_field['value'])) {
+                    $redmine_slack_user_map[$user['login']] = trim($custom_field['value']);
+                }
             }
+        }
+
+        $redmine_harvest_map = array_flip($this->userMap);
+        foreach ($redmine_slack_user_map as $redmine_user => $slack_user) {
+            $this->slackUserMap[$redmine_harvest_map[$redmine_user]] = $slack_user;
         }
         if (!count($this->userMap)) {
             throw new Exception('Unable to populate usermap!');
@@ -282,8 +469,12 @@ class SyncCommand extends Command
         // Strip the leading '#', and take the first entry.
         $redmine_issue_number = reset($redmine_issue_numbers);
         $redmine_issue_number = str_replace('#', '', $redmine_issue_number);
+
         if (!$redmine_issue_number) {
             // The resulting value is not a number.
+            $this->userTimeEntryErrors[$entry->get('user-id')]['no-number'][] = [
+                'entry' => $entry,
+            ];
             $this->output->writeln('<comment>Skipping entry, it does not look like there is an issue number here.');
 
             return false;
@@ -295,6 +486,9 @@ class SyncCommand extends Command
 
         if (!$redmine_issue || !isset($redmine_issue['issue']['project']['id'])) {
             // Issue doesn't exist in Redmine; this is probably a GitHub issue reference.
+            $this->userTimeEntryErrors[$entry->get('user-id')]['missing-issue'][] = [
+                'entry' => $entry,
+            ];
             $this->output->writeln(
                 sprintf(
                     '<error>- Could not find Redmine issue %d!</error>',
@@ -319,6 +513,9 @@ class SyncCommand extends Command
             if (!$found) {
                 // The issue number doesn't belong to the Harvest project we are looking at
                 // time entries for, so continue. It's probably a GitHub issue ref.
+                $this->userTimeEntryErrors[$entry->get('user-id')]['issue-not-in-project'][] = [
+                    'entry' => $entry,
+                ];
                 $this->output->writeln(
                     sprintf(
                         '<error>- Issue %d does not exist in the Redmine project(s) %s. Time entry: \'%s\'</error>',
@@ -435,6 +632,21 @@ class SyncCommand extends Command
      */
     protected function syncEntry(DayEntry $harvest_entry)
     {
+        // Check spelling.
+        $words = explode(' ', preg_replace('/[^a-z]+/i', ' ', $harvest_entry->get('notes')));
+        $spelling_errors = array();
+        foreach ($words as $word) {
+            if (!pspell_check($this->pspellLink, $word)) {
+                $spelling_errors[] = $word;
+            }
+        }
+        if ($spelling_errors) {
+            $this->userTimeEntryErrors[$harvest_entry->get('user-id')]['spelling'][] = [
+                'entry' => $harvest_entry,
+                'spelling-errors' => $spelling_errors,
+            ];
+        }
+
         $redmine_issue = $this->getRedmineIssue($harvest_entry);
         if (!$redmine_issue) {
             return false;
@@ -480,6 +692,15 @@ class SyncCommand extends Command
             $redmine_issue,
             $harvest_entry
         );
+
+        // Check rounding.
+        if ($redmine_entry_params['hours'] != $harvest_entry->get('hours')) {
+            $this->userTimeEntryErrors[$harvest_entry->get('user-id')]['rounding'][] = [
+                'entry' => $harvest_entry,
+                'rounded-hours' => $redmine_entry_params['hours'],
+            ];
+        }
+
         $save_entry_result = false;
         $this->setRedmineClient();
         if (!$this->input->getOption('dry-run')) {
@@ -572,6 +793,9 @@ class SyncCommand extends Command
         // Load configuration.
         $this->setConfig();
 
+        // Configure PSpell.
+        $this->configurePSpell();
+
         // Initialize the Harvest client.
         $this->setHarvestClient();
 
@@ -624,8 +848,20 @@ class SyncCommand extends Command
             $this->syncEntry($harvest_entry);
         }
 
+        foreach ($this->userTimeEntryErrors as $user => $errors) {
+            if ($this->input->getOption('slack-notify')) {
+                $output->writeln(
+                    sprintf(
+                        '<info>Notifying %s of time entry errors over slack</info>',
+                        $user
+                    )
+                );
+                $this->logErrorsToSlack($user, $errors);
+            }
+        }
+
         if ($this->errors) {
-            throw new Exception('Errors occurred during sync. See the logs.');
+            $output->writeln('<error>Errors occurred during sync. See the logs.</error>');
         }
         $output->writeln('<question>All done!</question>');
     }

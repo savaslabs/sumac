@@ -1,5 +1,11 @@
-FROM composer/composer:1.1-alpine
+FROM php:7
 MAINTAINER Kosta Harlan <kosta@savaslabs.com>
+
+RUN apt-get update && apt-get install -y libpspell-dev aspell-en git zip \
+    && docker-php-ext-install -j$(nproc) pspell
+
+RUN curl -sS https://getcomposer.org/installer | php \
+    && mv composer.phar /usr/local/bin/composer
 
 COPY . /usr/src/sumac
 WORKDIR /usr/src/sumac
