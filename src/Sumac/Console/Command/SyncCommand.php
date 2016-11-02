@@ -89,6 +89,12 @@ class SyncCommand extends Command
                         InputOption::VALUE_OPTIONAL,
                         'Path to configuration file. Leave empty if config.yml is in repository root.'
                     ),
+                    new InputOption(
+                        'slack-notify',
+                        'n',
+                        null,
+                        'If set, will attempt to send Slack notifications to users about errors in their time entries.'
+                    ),
                 ]
             )
             ->setDescription('Pushes time entries from Harvest to Redmine');
@@ -843,8 +849,15 @@ class SyncCommand extends Command
         }
 
         foreach ($this->userTimeEntryErrors as $user => $errors) {
-            $output->writeln(sprintf('<info>Notifying %s of time entry errors over slack</info>', $user));
-            $this->logErrorsToSlack($user, $errors);
+            if ($this->getOption('slack-notify')) {
+                $output->writeln(
+                    sprintf(
+                        '<info>Notifying %s of time entry errors over slack</info>',
+                        $user
+                    )
+                );
+                $this->logErrorsToSlack($user, $errors);
+            }
         }
 
         if ($this->errors) {

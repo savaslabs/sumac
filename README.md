@@ -51,6 +51,8 @@ You may also use the `--dry-run` flag to not actually post any data to Redmine.
 
 Use the `--update` option if you'd like to make updates to existing Redmine time entries. This is helpful if a user has gone back into Harvest and adjusted wording for Redmine issue descriptions, or time amounts, etc.
 
+Use the `--slack-notify` flag if you'd like to send notifications to users about potential errors in their time entries.
+
 ### Redmine and Harvest Authorization
 
 Fill in your credentials for Harvest and Redmine. The user account should have admin privileges to both systems.
