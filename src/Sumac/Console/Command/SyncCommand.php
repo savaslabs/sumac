@@ -849,7 +849,7 @@ class SyncCommand extends Command
         }
 
         foreach ($this->userTimeEntryErrors as $user => $errors) {
-            if ($this->getOption('slack-notify')) {
+            if ($this->input->getOption('slack-notify')) {
                 $output->writeln(
                     sprintf(
                         '<info>Notifying %s of time entry errors over slack</info>',
