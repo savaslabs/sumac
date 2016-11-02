@@ -91,7 +91,7 @@ class SyncCommand extends Command
                     ),
                     new InputOption(
                         'slack-notify',
-                        'n',
+                        null,
                         null,
                         'If set, will attempt to send Slack notifications to users about errors in their time entries.'
                     ),
