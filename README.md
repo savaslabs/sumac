@@ -22,6 +22,8 @@ Copy `config.example.yml` to `config.yml` and fill in any values (particularly, 
 
 **BUILD THE DOCKER CONTAINER LOCALLY** so you pull in any updates. Run `docker build -t savaslabs/sumac:dev .`, and then use the `:dev` tag when you're running the container in testing (as in the example below).
 
+You may also need to run `composer install` locally so that your `vendor` directory catches the dependencies.
+
 Within the `sumac` directory, run `docker run --net redmine_default -it --rm -v $(pwd):/usr/src/sumac savaslabs/sumac:dev sync -u 20160915:20160916`.
 
 Adjust the `--net redmine_default` parameter to match the network your Redmine instance is running on  (use `docker network ls` to find the correct value).
