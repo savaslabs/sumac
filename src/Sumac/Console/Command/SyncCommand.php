@@ -843,6 +843,7 @@ class SyncCommand extends Command
         }
 
         foreach ($this->userTimeEntryErrors as $user => $errors) {
+            $this->writeln(sprintf('<info>Notifying %s of time entry errors over slack</info>', $user));
             $this->logErrorsToSlack($user, $errors);
         }
 

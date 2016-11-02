@@ -5,7 +5,7 @@ auth:
     account: 'savaslabs'
   redmine:
     apikey: 'apiKey'
-    url: 'https://pm.savaslabs.com'
+    url: 'http://app:3000'
   slack:
     webhook_url: 'url'
     # Set debug-user to a slack username to route all slack notifications to that user.

@@ -18,9 +18,9 @@ Run `docker run --rm -v $(pwd):/tmp/sumac savaslabs/sumac sync -c /tmp/sumac/con
 
 Spin up redmine locally.
 
-Copy `config.example.yml` to `config.yml` and fill in any values (particularly, you'll need the Slack webhook URL if you want to test slack integration).
+Copy `config.example.yml` to `config.yml` and fill in any values (particularly, you'll need the Slack webhook URL if you want to test slack integration). You'll also need to fill in some harvest credentials which have the proper permissions.
 
-Within the `sumac` directory, run `docker run --net redmine_default -it --rm -v $(pwd):/usr/src/sumac savaslabs/sumac sync -c /tmp/sumac/config.yml -u 20160915:20160916`.
+Within the `sumac` directory, run `docker run --net redmine_default -it --rm -v $(pwd):/usr/src/sumac savaslabs/sumac sync -u 20160915:20160916`.
 
 Adjust the `--net redmine_default` parameter to match the network your Redmine instance is running on  (use `docker network ls` to find the correct value).
 
