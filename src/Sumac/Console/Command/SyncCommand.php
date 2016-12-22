@@ -431,8 +431,10 @@ class SyncCommand extends Command
     {
         $this->userMap = [];
         $this->setRedmineClient();
-        $users = $this->redmineClient->user->all(['limit' => 1000]);
-        foreach ($users['users'] as $user) {
+        $active_users = $this->redmineClient->user->all(['limit' => 1000]);
+        $locked_users = $this->redmineClient->user->all(['limit' => 1000, 'status' => 3]);
+        $users = array_merge($active_users['users'], $locked_users['users']);
+        foreach ($users as $user) {
             foreach ($user['custom_fields'] as $custom_field) {
                 if ($custom_field['name'] == 'Harvest ID' && !empty($custom_field['value'])) {
                     $this->userMap[trim($custom_field['value'])] = $user['login'];
