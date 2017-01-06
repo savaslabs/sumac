@@ -16,15 +16,28 @@ Run `docker run --rm -v $(pwd):/tmp/sumac savaslabs/sumac sync -c /tmp/sumac/con
 
 #### For local development
 
-Spin up redmine locally.
+Spin up Redmine locally.
 
-Copy `config.example.yml` to `config.yml` and fill in any values (particularly, you'll need the Slack webhook URL if you want to test slack integration). You'll also need to fill in some harvest credentials which have the proper permissions.
+Copy `config.example.yml` to `config.yml` and fill in any placeholder values. Particularly, you'll need the Slack webhook URL if you want to test slack integration, you'll need to fill in some Harvest credentials which have the proper permissions, and you'll need the Remine API key for the instance you're running locally.
+
+The Slack webhook url and Harvest credentials can be obtained either from a team member with those credentials, or from the Savas Labs production server's `/home/jenkins/sumac/config.yml` file.
+
+The Redmine `apikey` should be for the `savasadmin` user on your local instance of Redmine. To obtain the API key, first reset the `savasadmin` user's Redmine password locally:
+
+- From the Redmine project root, shell into the Redmine DB container via `docker-compose exec db /bin/bash`
+- Access the DB via `mysql -u redmine -p` using the password `password`
+- Switch to the Redmine DB via `use redmine_docker;`
+- Update the `savasadmin` user's hashed password via `UPDATE users SET hashed_password='353e8061f2befecb6818ba0c034c632fb0bcae1b' WHERE login='savasadmin';`
+- Update the `savasadmin` user's password salt via `UPDATE users SET salt='' WHERE login='savasadmin';`
+- Quit and exit
+
+You should now be able to log into your local Redmine instance using username `savasadmin` and password `password`. Then, obtain the API key by clicking on `My Account`, then click `Show` under `API access key`.
 
 **BUILD THE DOCKER CONTAINER LOCALLY** so you pull in any updates. Run `docker build -t savaslabs/sumac:dev .`, and then use the `:dev` tag when you're running the container in testing (as in the example below).
 
 You may also need to run `composer install` locally so that your `vendor` directory catches the dependencies.
 
-Within the `sumac` directory, run `docker run --net redmine_default -it --rm -v $(pwd):/usr/src/sumac savaslabs/sumac:dev sync -u 20160915:20160916`.
+Within the `sumac` directory, run `docker run --net redmine_default -it --rm -v $(pwd):/usr/src/sumac savaslabs/sumac:dev sync -u 20160915:20160916`. If you'd like to test Slack notifications, include the `--slack-notify` flag at the end of that command (and make sure the `debug-user` is set in `config.yml`).
 
 Adjust the `--net redmine_default` parameter to match the network your Redmine instance is running on  (use `docker network ls` to find the correct value).
 
