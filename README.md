@@ -43,6 +43,24 @@ Adjust the `--net redmine_default` parameter to match the network your Redmine i
 
 If you are developing, you'll want to run `composer install` on the host, to get grumphp and phpcs locally.
 
+#### Local Debugging
+
+In order to debug locally, you'll need to install some dependencies on your host. These steps assume you're running OS X.
+
+- Install PHP 7 and Xdebug if they are not already installed (you can check your PHP version via `php --version`):
+    - `brew install homebrew/php/php70-xdebug`
+    - Install PHP 7 following [this guide](https://developerjack.com/blog/2015/12/11/Installing-PHP7-with-homebrew/)
+- Install pspell:
+    - `brew install homebrew/php/php70-pspell`
+- Update the redmine URL in `config.yml` from 'http://app:3000' to 'https://local.pm.savaslabs.com'
+- In PhpStorm preferences, search for "Interpreter" and click on the preference option for "PHP" on the left. Add a new interpreter for PHP 7 and make sure the path is `/usr/local/bin/php` and not `/usr/bin/php`
+- In PhpStorm go to Run -> Edit Configurations
+    - Add a new configuration for a PHP Script
+    - For "File", select `sumac.php`
+    - Fill in the arguments. For example, to run slack notification enter the arguments `sync -u 20170110:20170111 --slack-notify`
+- Set some breakpoints in your code
+- In PhpStorm, select "Debug Sumac" from under "Run"
+
 ## Requirements
 
 - Redmine 3
