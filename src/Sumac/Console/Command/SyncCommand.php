@@ -862,14 +862,11 @@ class SyncCommand extends Command
 
         if ($this->errors) {
             $output->writeln('<error>Errors occurred during sync. See the logs.</error>');
-        }
-        $output->writeln('<question>All done!</question>');
-
-        // Return the proper status code.
-        if ($this->errors) {
+            // Return error code.
             return 1;
-        } else {
-            return 0;
         }
+
+        $output->writeln('<question>All done!</question>');
+        return 0;
     }
 }
