@@ -31,6 +31,13 @@ class SyncCommand extends Command
     private $redmineClient;
     /** @var \Harvest\HarvestAPI */
     private $harvestClient;
+    /** @var array */
+    private $redmineTimeEntries;
+    /** @var int
+     * Custom field ID for the Harvest Time Entry ID field
+     * on Redmine time entries
+     */
+    private $harvestTimeEntryFieldId = 20;
 
     /** @var array
      * Maps harvest IDs to Redmine IDs
@@ -209,6 +216,47 @@ class SyncCommand extends Command
     }
 
     /**
+     * Cache all redmine time entries in a local array.
+     */
+    private function cacheRedmineTimeEntries()
+    {
+        $all_time_entries = $this->redmineClient->time_entry->all(array('limit' => 1000000, 'offset' => 0));
+        if (!isset($all_time_entries['time_entries'])) {
+            $this->output->writeln(
+                '<error>Invalid time entry list returned from API.'
+                .' Possible that API token is not set correctly.</error>'
+            );
+            $this->errors = true;
+
+            return false;
+        }
+
+        // Filter out time entries with null Harvest Time Entry ID and rework
+        // this into a dictionary by harvest ID.
+        $this->redmineTimeEntries = array();
+
+        foreach ($all_time_entries['time_entries'] as $time_entry) {
+            if (is_array($time_entry['custom_fields'])) {
+                foreach ($time_entry['custom_fields'] as $field) {
+                    if ($field['name'] == 'Harvest Time Entry ID' && !empty($field['value'])) {
+                        if (isset($this->redmineTimeEntries[$field['value']])) {
+                            $this->output->writeln(
+                                '<error>Duplicate Redmine time entries found with Harvest ID %s</error>',
+                                $field['value']
+                            );
+                            $this->errors = true;
+
+                            return false;
+                        } else {
+                            $this->redmineTimeEntries[$field['value']] = $time_entry;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Logs errors to slack for a given harvest user.
      */
     protected function logErrorsToSlack($harvest_id, array $errors)
@@ -383,8 +431,10 @@ class SyncCommand extends Command
     {
         $this->userMap = [];
         $this->setRedmineClient();
-        $users = $this->redmineClient->user->all(['limit' => 1000]);
-        foreach ($users['users'] as $user) {
+        $active_users = $this->redmineClient->user->all(['limit' => 1000]);
+        $locked_users = $this->redmineClient->user->all(['limit' => 1000, 'status' => 3]);
+        $users = array_merge($active_users['users'], $locked_users['users']);
+        foreach ($users as $user) {
             foreach ($user['custom_fields'] as $custom_field) {
                 if ($custom_field['name'] == 'Harvest ID' && !empty($custom_field['value'])) {
                     $this->userMap[trim($custom_field['value'])] = $user['login'];
@@ -545,31 +595,11 @@ class SyncCommand extends Command
         array $redmine_issue,
         DayEntry $harvest_entry
     ) {
-        $redmine_search_params = [
-            'issue_id' => $redmine_issue['issue']['id'],
-            'limit' => 10000,
-        ];
-
-        $this->setRedmineClient();
-        $time_entry_api = new Redmine\Api\TimeEntry($this->redmineClient);
-        $redmine_time_entries = $time_entry_api->all($redmine_search_params);
-        $matching_entries = [];
-
-        if (isset($redmine_time_entries['total_count']) && $redmine_time_entries['total_count'] > 0) {
-            // There might be a match.
-            foreach ($redmine_time_entries['time_entries'] as $redmine_time_entry) {
-                // TODO: There should always be a comment in the time entry,
-                // but this is not the case for time entry ID 3494 and others.
-                if (isset($redmine_time_entry['comments']) && strpos(
-                    $redmine_time_entry['comments'],
-                    $harvest_entry->get('id')
-                ) !== false) {
-                    $matching_entries[] = $redmine_time_entry;
-                }
-            }
+        if (isset($this->redmineTimeEntries[$harvest_entry->get('id')])) {
+            return $this->redmineTimeEntries[$harvest_entry->get('id')];
+        } else {
+            return false;
         }
-
-        return $matching_entries;
     }
 
     /**
@@ -594,28 +624,35 @@ class SyncCommand extends Command
             'project_id' => $redmine_issue['issue']['project']['id'],
             'hours' => $hours,
             'comments' => htmlspecialchars($harvest_entry->get('notes').' [Harvest ID: '.$harvest_entry->get('id').']'),
+            'custom_fields' => [
+                0 => [
+                    'id' => $this->harvestTimeEntryFieldId,
+                    'name' => 'Harvest Time Entry ID',
+                    'value' => $harvest_entry->get('id'),
+                ],
+            ],
         ];
     }
 
     /**
      * Saves a harvest entry to Redmine, or updates an existing one if it exists.
      *
-     * @param array $redmine_time_entry_params
-     * @param array $existing_redmine_time_entries
+     * @param array       $redmine_time_entry_params
+     * @param object|bool $existing_redmine_time_entry
      *
      * @return bool
      */
     protected function saveHarvestTimeEntryToRedmine(
         array $redmine_time_entry_params,
-        array $existing_redmine_time_entries
+        $existing_redmine_time_entry
     ) {
         $time_entry_api = new Redmine\Api\TimeEntry($this->redmineClient);
-        if (count($existing_redmine_time_entries) === 0) {
+        if ($existing_redmine_time_entry === false) {
             $time_entry_api->create($redmine_time_entry_params);
         } else {
             // Update existing entry.
             $time_entry_api->update(
-                $existing_redmine_time_entries[0]['id'],
+                $existing_redmine_time_entry['id'],
                 $redmine_time_entry_params
             );
         }
@@ -652,25 +689,13 @@ class SyncCommand extends Command
             return false;
         }
 
-        $existing_redmine_time_entries = $this->getExistingRedmineIssueTimeEntries(
+        $existing_redmine_time_entry = $this->getExistingRedmineIssueTimeEntries(
             $redmine_issue,
             $harvest_entry
         );
 
         // If there are existing Redmine time entries matching this harvest entry and we are not updating, skip.
-        if (count($existing_redmine_time_entries) > 0 && !$this->input->getOption('update')) {
-            return false;
-        }
-
-        // Or if there is more than one matching redmine time entry, throw an error and continue.
-        if (count($existing_redmine_time_entries) > 1) {
-            $this->output->writeln(sprintf(
-                '<error>Multiple Redmine time entries matching harvest time entry %d. See entries %s</error>',
-                $harvest_entry->get('id'),
-                json_encode($existing_redmine_time_entries)
-            ));
-            $this->errors = true;
-
+        if ($existing_redmine_time_entry !== false > 0 && !$this->input->getOption('update')) {
             return false;
         }
 
@@ -710,7 +735,7 @@ class SyncCommand extends Command
                 );
                 $save_entry_result = $this->saveHarvestTimeEntryToRedmine(
                     $redmine_entry_params,
-                    $existing_redmine_time_entries
+                    $existing_redmine_time_entry
                 );
             } catch (\Exception $e) {
                 $this->output->writeln(
@@ -729,7 +754,7 @@ class SyncCommand extends Command
             $this->output->writeln(
                 sprintf(
                     '<comment>%s time entry for issue #%d with %s hours (Harvest hours: %s)</comment>',
-                    count($existing_redmine_time_entries) > 0 ? 'Updated' : 'Created',
+                    ($existing_redmine_time_entry === false) > 0 ? 'Updated' : 'Created',
                     $redmine_issue['issue']['id'],
                     $redmine_entry_params['hours'],
                     $harvest_entry->get('hours')
@@ -801,6 +826,9 @@ class SyncCommand extends Command
 
         // Initialize the Redmine client.
         $this->setRedmineClient();
+
+        // Cache redmine time entries.
+        $this->cacheRedmineTimeEntries();
 
         // Map harvest projects to redmine projects.
         $this->populateProjectMap();
