@@ -536,8 +536,6 @@ class SyncCommand extends Command
             ];
             $this->syncErrors[] = $this->formatError(
                 'NO_ISSUE_NUMBER',
-                '',
-                '',
                 $entry
             );
 
@@ -557,8 +555,6 @@ class SyncCommand extends Command
             $this->errors = true;
             $this->syncErrors[] = $this->formatError(
                 'ISSUE_NOT_FOUND',
-                $redmine_issue_number,
-                '',
                 $entry
             );
 
