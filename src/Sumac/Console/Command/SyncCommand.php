@@ -493,10 +493,10 @@ class SyncCommand extends Command
             throw new Exception('Unable to load project data');
         }
         if ((isset($this->config['sync']['projects']['exclude'])) && (in_array(
-            $project->get('id'),
+            $project_data->get('id'),
             $this->config['sync']['projects']['exclude']
         ))) {
-            $this->skipProjects[] = $project->get('name');
+            $this->skipProjects[] = $project_data->get('name');
 
             return;
         }
@@ -583,8 +583,6 @@ class SyncCommand extends Command
                 ];
                 $this->syncErrors[] = $this->formatError(
                     'ISSUE_PROJECT_MISMATCH',
-                    $redmine_issue_number,
-                    implode(',', $project_names),
                     $entry
                 );
 
@@ -878,7 +876,7 @@ class SyncCommand extends Command
             $this->io->warning(
                 sprintf(
                     'Skipped projects %s, in config.yml excludes list',
-                    implode(', ', $this > $this->skipProjects)
+                    implode(', ', $this->skipProjects)
                 )
             );
         }
