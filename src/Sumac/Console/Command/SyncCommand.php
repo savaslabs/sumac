@@ -455,12 +455,14 @@ class SyncCommand extends Command
         $locked_users = $this->redmineClient->user->all(['limit' => 1000, 'status' => 3]);
         $users = array_merge($active_users['users'], $locked_users['users']);
         foreach ($users as $user) {
-            foreach ($user['custom_fields'] as $custom_field) {
-                if ($custom_field['name'] == 'Harvest ID' && !empty($custom_field['value'])) {
-                    $this->userMap[trim($custom_field['value'])] = $user['login'];
-                }
-                if ($custom_field['name'] == 'Slack ID' && !empty($custom_field['value'])) {
-                    $redmine_slack_user_map[$user['login']] = trim($custom_field['value']);
+            if (isset($user['custom_fields'])) {
+                foreach ($user['custom_fields'] as $custom_field) {
+                    if ($custom_field['name'] == 'Harvest ID' && !empty($custom_field['value'])) {
+                        $this->userMap[trim($custom_field['value'])] = $user['login'];
+                    }
+                    if ($custom_field['name'] == 'Slack ID' && !empty($custom_field['value'])) {
+                        $redmine_slack_user_map[$user['login']] = trim($custom_field['value']);
+                    }
                 }
             }
         }
