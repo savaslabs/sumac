@@ -600,7 +600,8 @@ class SyncCommand extends Command
      *
      * @return array
      */
-    protected function getExistingRedmineIssueTimeEntries(DayEntry $harvest_entry) {
+    protected function getExistingRedmineIssueTimeEntries(DayEntry $harvest_entry)
+    {
         if (isset($this->redmineTimeEntries[$harvest_entry->get('id')])) {
             return $this->redmineTimeEntries[$harvest_entry->get('id')];
         } else {
