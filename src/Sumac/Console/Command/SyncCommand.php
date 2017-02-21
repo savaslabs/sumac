@@ -901,8 +901,11 @@ class SyncCommand extends Command
         }
         $this->io->note(sprintf('Notified %s of time entry errors via Slack.', implode(', ', $users)));
 
-        if ($this->errors) {
-            $this->renderEntries('Successes', ['Message', 'Notes'], $this->syncSuccesses);
+        if (count($this->syncSuccesses)) {
+           $this->renderEntries('Successes', ['Message', 'Notes'], $this->syncSuccesses);
+        }
+
+        if (count($this->syncErrors)) {
             $this->renderEntries('Errors', ['Message', 'URL'], $this->syncErrors);
             $io->error(
                 sprintf(
