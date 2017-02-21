@@ -1,7 +1,7 @@
 {
     "require": {
         "gridonic/hapi": "^0.1.0",
-        "kbsali/redmine-api": "^1.5.10",
+        "kbsali/redmine-api": "~1.0",
         "symfony/yaml": "^3.0",
         "symfony/console": "^3.2",
         "nesbot/carbon": "^1.21",
