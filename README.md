@@ -29,6 +29,7 @@ The Redmine `apikey` should be for the `savasadmin` user on your local instance 
 - Switch to the Redmine DB via `use redmine_docker;`
 - Update the `savasadmin` user's hashed password via `UPDATE users SET hashed_password='353e8061f2befecb6818ba0c034c632fb0bcae1b' WHERE login='savasadmin';`
 - Update the `savasadmin` user's password salt via `UPDATE users SET salt='' WHERE login='savasadmin';`
+- Unblock the `savasadmin` user by updating their status via `UPDATE users SET status = 1 WHERE id = 1;`
 - Quit and exit
 
 You should now be able to log into your local Redmine instance using username `savasadmin` and password `password`. Then, obtain the API key by clicking on `My Account`, then click `Show` under `API access key`.
