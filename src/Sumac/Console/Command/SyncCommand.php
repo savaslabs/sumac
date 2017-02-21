@@ -57,6 +57,12 @@ class SyncCommand extends Command
      */
     protected $userMap;
 
+    /** @var array */
+    protected $syncedHarvestRecords;
+
+    /** @var array */
+    protected $cachedHarvestEntries;
+
     /** @var array
      * Maps Harvest IDs to Slack usernames
      */
@@ -536,7 +542,7 @@ class SyncCommand extends Command
             $this->userTimeEntryErrors[$entry->get('user-id')]['no-number'][] = [
                 'entry' => $entry,
             ];
-            $this->syncErrors[] = $this->formatError(
+            $this->syncErrors[$entry->get('id')] = $this->formatError(
                 'NO_ISSUE_NUMBER',
                 $entry
             );
@@ -555,7 +561,7 @@ class SyncCommand extends Command
             ];
 
             $this->errors = true;
-            $this->syncErrors[] = $this->formatError(
+            $this->syncErrors[$entry->get('id')] = $this->formatError(
                 'ISSUE_NOT_FOUND',
                 $entry
             );
@@ -579,7 +585,7 @@ class SyncCommand extends Command
                 $this->userTimeEntryErrors[$entry->get('user-id')]['issue-not-in-project'][] = [
                     'entry' => $entry,
                 ];
-                $this->syncErrors[] = $this->formatError(
+                $this->syncErrors[$entry->get('id')] = $this->formatError(
                     'ISSUE_PROJECT_MISMATCH',
                     $entry
                 );
@@ -655,16 +661,22 @@ class SyncCommand extends Command
     ) {
         $time_entry_api = new Redmine\Api\TimeEntry($this->redmineClient);
         if ($existing_redmine_time_entry === false) {
-            $time_entry_api->create($redmine_time_entry_params);
+            /** @var \SimpleXMLElement $result */
+            $result = $time_entry_api->create($redmine_time_entry_params);
         } else {
             // Update existing entry.
             $time_entry_api->update(
                 $existing_redmine_time_entry['id'],
                 $redmine_time_entry_params
             );
+            // Redmine API does not seem to return an object for PUT requests.
+            $result = true;
         }
+        // Keep a log of the Harvest IDs that we've synced.
+        $harvest_id = $redmine_time_entry_params['custom_fields'][0]['value'];
+        $this->syncedHarvestRecords[$harvest_id] = $harvest_id;
 
-        return true;
+        return ($result) ? $result : false;
     }
 
     /**
@@ -756,12 +768,17 @@ class SyncCommand extends Command
                 $this->redmineClient->setImpersonateUser(null);
             }
         }
+        // Log a success if there was one (or if dry run).
         if ($save_entry_result || $this->input->getOption('dry-run')) {
             $this->syncSuccesses[] = $this->formatSuccess(
-                ($existing_redmine_time_entry === false) > 0 ? 'Updated' : 'Created',
+                ($existing_redmine_time_entry) ? 'Updated' : 'Created',
                 $redmine_issue['issue']['id'],
                 $harvest_entry
             );
+        }
+        // If no save entry result, and not a dry run, log an error.
+        if (!$save_entry_result && !$this->input->getOption('dry-run')) {
+            $this->syncErrors[$harvest_entry->get('id')] = $this->formatError('UNABLE_TO_SYNC', $harvest_entry);
         }
 
         return $save_entry_result;
@@ -794,7 +811,7 @@ class SyncCommand extends Command
             $entries = $this->getHarvestTimeEntries($project_data_result);
             if (count($entries)) {
                 foreach ($entries as $entry) {
-                    $project_data[] = $entry;
+                    $this->cachedHarvestEntries[$entry->get('id')] = $entry;
                 }
             }
 
@@ -802,7 +819,7 @@ class SyncCommand extends Command
         }
         $this->io->progressFinish();
 
-        return array_filter($project_data);
+        array_filter($this->cachedHarvestEntries);
     }
 
     /**
@@ -860,8 +877,8 @@ class SyncCommand extends Command
         $this->populateUserMap();
 
         // Get Harvest time entries for those found in the project map.
-        /** @var \Harvest\Model\Result $projects */
-        $entries = $this->getHarvestDataForProjects();
+        /* @var \Harvest\Model\Result $projects */
+        $this->getHarvestDataForProjects();
         if (count($this->skipProjects)) {
             $this->io->warning(
                 sprintf(
@@ -871,7 +888,7 @@ class SyncCommand extends Command
             );
         }
 
-        $entries_to_log = array_filter($entries, function ($entry) {
+        $entries_to_log = array_filter($this->cachedHarvestEntries, function ($entry) {
             return strpos($entry->get('notes'), '#') !== false;
         });
 
@@ -879,7 +896,7 @@ class SyncCommand extends Command
             sprintf(
                 'Found %d entries with possible Redmine IDs out of %d total',
                 count($entries_to_log),
-                count($entries)
+                count($this->cachedHarvestEntries)
             )
         );
 
@@ -891,6 +908,22 @@ class SyncCommand extends Command
             $this->io->progressAdvance();
         }
         $this->io->progressFinish();
+
+        // If not a dry run, make another call to Redmine to ensure that the entry was really created. This is
+        // necessary since Redmine API doesn't always return errors when making POST OR PUT requests.
+        // time entries.
+        $this->redmineTimeEntries = [];
+        $this->cacheRedmineTimeEntries();
+        foreach ($this->syncedHarvestRecords as $record) {
+            if (!array_key_exists($record, $this->redmineTimeEntries)) {
+                if (!array_key_exists($record, $this->syncErrors)) {
+                    $this->syncErrors[$record] = $this->formatError(
+                        'HARVEST_ID_NOT_SYNCED',
+                        $this->cachedHarvestEntries[$record]
+                    );
+                }
+            }
+        }
 
         $users = [];
         foreach ($this->userTimeEntryErrors as $user => $errors) {
@@ -918,13 +951,6 @@ class SyncCommand extends Command
             return 1;
         }
 
-        $io->table(
-            [
-                'Message',
-                'Notes',
-            ],
-            $this->syncSuccesses
-        );
         $this->io->success(sprintf('All done! Synced %d time entries.', count($this->syncSuccesses)));
 
         return 0;
