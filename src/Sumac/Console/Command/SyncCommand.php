@@ -596,15 +596,11 @@ class SyncCommand extends Command
     /**
      * Get Redmine time entries matching a harvest entry.
      *
-     * @param array                   $redmine_issue
      * @param \Harvest\Model\DayEntry $harvest_entry
      *
      * @return array
      */
-    protected function getExistingRedmineIssueTimeEntries(
-        array $redmine_issue,
-        DayEntry $harvest_entry
-    ) {
+    protected function getExistingRedmineIssueTimeEntries(DayEntry $harvest_entry) {
         if (isset($this->redmineTimeEntries[$harvest_entry->get('id')])) {
             return $this->redmineTimeEntries[$harvest_entry->get('id')];
         } else {
@@ -700,7 +696,6 @@ class SyncCommand extends Command
         }
 
         $existing_redmine_time_entry = $this->getExistingRedmineIssueTimeEntries(
-            $redmine_issue,
             $harvest_entry
         );
 
@@ -761,10 +756,6 @@ class SyncCommand extends Command
             }
         }
         if ($save_entry_result || $this->input->getOption('dry-run')) {
-            $redmine_project_names = [];
-            foreach ($this->projectMap[$harvest_entry->get('project-id')] as $value) {
-                $redmine_project_names[] = current($value);
-            }
             $this->syncSuccesses[] = $this->formatSuccess(
                 ($existing_redmine_time_entry === false) > 0 ? 'Updated' : 'Created',
                 $redmine_issue['issue']['id'],
