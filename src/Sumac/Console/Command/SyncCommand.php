@@ -466,6 +466,17 @@ class SyncCommand extends Command
                 ],
             ]),
         ]);
+
+        if (is_array($fields)) {
+            foreach ($fields as $stmt) {
+                $this->output->writeln(sprintf(
+                  '%s %s',
+                  $stmt['title'],
+                  $stmt['value'])
+                );
+            }
+        }
+
     }
 
     /**
