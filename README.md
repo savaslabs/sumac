@@ -26,7 +26,7 @@ The Redmine `apikey` should be for the `savasadmin` user on your local instance 
 
 - From the Redmine project root, shell into the Redmine DB container via `docker-compose exec db /bin/bash`
 - Access the DB via `mysql -ppassword -u redmine redmine_docker` 
-- Update the `savasadmin` user's hashed password, sale, and status via `UPDATE users SET hashed_password='353e8061f2befecb6818ba0c034c632fb0bcae1b', status=1, salt='' WHERE login='savasadmin';`
+- Update the `savasadmin` user's hashed password, salt, and status via `UPDATE users SET hashed_password='353e8061f2befecb6818ba0c034c632fb0bcae1b', status=1, salt='' WHERE login='savasadmin';`
 - Quit and exit
 
 You should now be able to log into your local Redmine instance using username `savasadmin` and password `password`. Then, obtain the API key by clicking on `My Account`, then click `Show` under `API access key`.
