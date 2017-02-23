@@ -25,11 +25,8 @@ The Slack webhook url and Harvest credentials can be obtained either from a team
 The Redmine `apikey` should be for the `savasadmin` user on your local instance of Redmine. To obtain the API key, first reset the `savasadmin` user's Redmine password locally:
 
 - From the Redmine project root, shell into the Redmine DB container via `docker-compose exec db /bin/bash`
-- Access the DB via `mysql -u redmine -p` using the password `password`
-- Switch to the Redmine DB via `use redmine_docker;`
-- Update the `savasadmin` user's hashed password via `UPDATE users SET hashed_password='353e8061f2befecb6818ba0c034c632fb0bcae1b' WHERE login='savasadmin';`
-- Update the `savasadmin` user's password salt via `UPDATE users SET salt='' WHERE login='savasadmin';`
-- Unblock the `savasadmin` user by updating their status via `UPDATE users SET status = 1 WHERE id = 1;`
+- Access the DB via `mysql -ppassword -u redmine redmine_docker` 
+- Update the `savasadmin` user's hashed password, sale, and status via `UPDATE users SET hashed_password='353e8061f2befecb6818ba0c034c632fb0bcae1b', status=1, salt='' WHERE login='savasadmin';`
 - Quit and exit
 
 You should now be able to log into your local Redmine instance using username `savasadmin` and password `password`. Then, obtain the API key by clicking on `My Account`, then click `Show` under `API access key`.
