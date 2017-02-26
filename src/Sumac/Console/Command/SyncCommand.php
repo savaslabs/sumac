@@ -4,6 +4,7 @@ namespace Sumac\Console\Command;
 
 use Symfony\Component\Config\Definition\Exception\Exception;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
@@ -23,6 +24,8 @@ class SyncCommand extends Command
     private $input;
     /** @var \Symfony\Component\Console\Output\OutputInterface */
     private $output;
+    /** @var \Symfony\Component\Console\Style\SymfonyStyle */
+    private $io;
     /** @var array */
     private $config;
     /** @var bool */
@@ -38,7 +41,12 @@ class SyncCommand extends Command
      * on Redmine time entries
      */
     private $harvestTimeEntryFieldId = 20;
-
+    /** @var array */
+    private $syncErrors;
+    /** @var array */
+    private $syncSuccesses;
+    /** @var array */
+    private $skipProjects;
     /** @var array
      * Maps harvest IDs to Redmine IDs
      */
@@ -48,6 +56,12 @@ class SyncCommand extends Command
      * Maps Redmine users to Harvest IDs
      */
     protected $userMap;
+
+    /** @var array */
+    protected $syncedHarvestRecords;
+
+    /** @var array */
+    protected $cachedHarvestEntries;
 
     /** @var array
      * Maps Harvest IDs to Slack usernames
@@ -216,7 +230,7 @@ class SyncCommand extends Command
     }
 
     /**
-     * Cache all redmine time entries in a local array.
+     * Cache all Redmine time entries in a local array.
      */
     private function cacheRedmineTimeEntries()
     {
@@ -258,6 +272,13 @@ class SyncCommand extends Command
 
     /**
      * Logs errors to slack for a given harvest user.
+     *
+     * @param int   $harvest_id
+     *                          The Harvest ID of the user to message about incorrect entries
+     * @param array $errors
+     *                          An array of time entry errors to send to Slack
+     *
+     * @return none
      */
     protected function logErrorsToSlack($harvest_id, array $errors)
     {
@@ -269,7 +290,7 @@ class SyncCommand extends Command
         if (empty($slack_id)) {
             $this->output->writeln(
                 sprintf(
-                    '<warning>Slack user not defined for harvest user %s.</warning>',
+                    '<warning>Slack user not defined for Harvest user %s.</warning>',
                     $harvest_id
                 )
             );
@@ -289,7 +310,7 @@ class SyncCommand extends Command
         $error_category_titles = [
             'no-issue-number' => 'Time entries with no issue number',
             'missing-issue' => 'Time entries where no matching redmine issue was found',
-            'issue-not-in-project' => 'Matching redmine issue found, but it was in a different project',
+            'issue-not-in-project' => 'Redmine issue\'s project doesn\'t match up with the Harvest project.',
             'spelling' => 'Possible spelling errors',
             'rounding' => 'Possible rounding errors',
         ];
@@ -297,41 +318,46 @@ class SyncCommand extends Command
         $error_message_formatters = [
             'no-issue-number' => function ($error) {
                 return sprintf(
-                    '%s (%s) -- %s',
-                    $error['entry']->get('project-id'),
+                    "%s (%s) -- %s\n%s",
                     substr($error['entry']->get('spent-at'), 0, 10),
-                    $error['entry']->get('notes')
+                    $error['entry']->get('project-id'),
+                    $error['entry']->get('notes'),
+                    $this->getClickableTimeEntryUrl($error['entry'])
                 );
             },
             'missing-issue' => function ($error) {
                 return sprintf(
-                    '%s -- %s',
+                    "%s -- %s\n%s",
                     substr($error['entry']->get('spent-at'), 0, 10),
-                    $error['entry']->get('notes')
+                    $error['entry']->get('notes'),
+                    $this->getClickableTimeEntryUrl($error['entry'])
                 );
             },
             'issue-not-in-project' => function ($error) {
                 return sprintf(
-                    '%s -- %s',
+                    "%s -- %s\n%s",
                     substr($error['entry']->get('spent-at'), 0, 10),
-                    $error['entry']->get('notes')
+                    $error['entry']->get('notes'),
+                    $this->getClickableTimeEntryUrl($error['entry'])
                 );
             },
             'spelling' => function ($error) {
                 return sprintf(
-                    "%s -- %s\n_Potential misspellings: %s_\n",
+                    "%s -- %s\n_Potential misspellings: %s_\n%s",
                     substr($error['entry']->get('spent-at'), 0, 10),
                     $error['entry']->get('notes'),
-                    implode(', ', $error['spelling-errors'])
+                    implode(', ', $error['spelling-errors']),
+                    $this->getClickableTimeEntryUrl($error['entry'])
                 );
             },
             'rounding' => function ($error) {
                 return sprintf(
-                    "%s -- %s\nHours were: %.2f, should be %.2f",
+                    "%s -- %s\nHours were: %.2f, should be %.2f\n%s",
                     substr($error['entry']->get('spent-at'), 0, 10),
                     $error['entry']->get('notes'),
                     $error['entry']->get('hours'),
-                    $error['rounded-hours']
+                    $error['rounded-hours'],
+                    $this->getClickableTimeEntryUrl($error['entry'])
                 );
             },
         ];
@@ -435,12 +461,14 @@ class SyncCommand extends Command
         $locked_users = $this->redmineClient->user->all(['limit' => 1000, 'status' => 3]);
         $users = array_merge($active_users['users'], $locked_users['users']);
         foreach ($users as $user) {
-            foreach ($user['custom_fields'] as $custom_field) {
-                if ($custom_field['name'] == 'Harvest ID' && !empty($custom_field['value'])) {
-                    $this->userMap[trim($custom_field['value'])] = $user['login'];
-                }
-                if ($custom_field['name'] == 'Slack ID' && !empty($custom_field['value'])) {
-                    $redmine_slack_user_map[$user['login']] = trim($custom_field['value']);
+            if (isset($user['custom_fields'])) {
+                foreach ($user['custom_fields'] as $custom_field) {
+                    if ($custom_field['name'] == 'Harvest ID' && !empty($custom_field['value'])) {
+                        $this->userMap[trim($custom_field['value'])] = $user['login'];
+                    }
+                    if ($custom_field['name'] == 'Slack ID' && !empty($custom_field['value'])) {
+                        $redmine_slack_user_map[$user['login']] = trim($custom_field['value']);
+                    }
                 }
             }
         }
@@ -450,54 +478,43 @@ class SyncCommand extends Command
             $this->slackUserMap[$redmine_harvest_map[$redmine_user]] = $slack_user;
         }
         if (!count($this->userMap)) {
-            throw new Exception('Unable to populate usermap!');
+            throw new Exception('Unable to populate user map!');
         }
     }
 
     /**
      * Get all redmine time entries which might need to be synced.
      *
-     * @param \Harvest\Model\Result $projects_array
-     *                                              Array of harvest projects
+     * @param \Harvest\Model\Result $project
+     *                                       Array of harvest projects
      *
      * @return array
      */
-    protected function getHarvestTimeEntries($projects_array)
+    protected function getHarvestTimeEntries($project)
     {
         $entries = [];
-
         // Get entries.
-        foreach ($projects_array as $projects) {
-            /** @var $projects \Harvest\Model\Project */
-            $project = $projects->get('data');
-            if (!is_object($project)) {
-                $this->output->writeln('- <error>Could not get project data!');
-                continue;
-            }
-            if ((isset($this->config['sync']['projects']['exclude'])) && (in_array(
-                $project->get('id'),
-                $this->config['sync']['projects']['exclude']
-            ))) {
-                $this->output->writeln(
-                    sprintf(
-                        '<comment>- Skipping project %s, in exclude list</comment>',
-                        $project->get('name')
-                    )
-                );
-                continue;
-            }
+        /** @var $projects \Harvest\Model\Project */
+        $project_data = $project->get('data');
+        if (!is_object($project_data)) {
+            // TODO: Better error message.j
+            throw new Exception('Unable to load project data');
+        }
+        if ((isset($this->config['sync']['projects']['exclude'])) && (in_array(
+            $project_data->get('id'),
+            $this->config['sync']['projects']['exclude']
+        ))) {
+            $this->skipProjects[] = $project_data->get('name');
 
-            $this->output->writeln('<comment>- Retrieving time entry data for '
-                .$project->get('name')
-                .' ('.$project->get('id')
-                .')</comment>');
-            $project_entries = $this->harvestClient->getProjectEntries(
-                $project->get('id'),
-                $this->getRange()
-            );
-            foreach ($project_entries->get('data') as $harvest_entry) {
-                $entries[] = $harvest_entry;
-            }
+            return;
+        }
+
+        $project_entries = $this->harvestClient->getProjectEntries(
+            $project_data->get('id'),
+            $this->getRange()
+        );
+        foreach ($project_entries->get('data') as $harvest_entry) {
+            $entries[] = $harvest_entry;
         }
 
         return $entries;
@@ -525,7 +542,10 @@ class SyncCommand extends Command
             $this->userTimeEntryErrors[$entry->get('user-id')]['no-number'][] = [
                 'entry' => $entry,
             ];
-            $this->output->writeln('<comment>Skipping entry, it does not look like there is an issue number here.');
+            $this->syncErrors[$entry->get('id')] = $this->formatError(
+                'NO_ISSUE_NUMBER',
+                $entry
+            );
 
             return false;
         }
@@ -539,13 +559,12 @@ class SyncCommand extends Command
             $this->userTimeEntryErrors[$entry->get('user-id')]['missing-issue'][] = [
                 'entry' => $entry,
             ];
-            $this->output->writeln(
-                sprintf(
-                    '<error>- Could not find Redmine issue %d!</error>',
-                    $redmine_issue_number
-                )
-            );
+
             $this->errors = true;
+            $this->syncErrors[$entry->get('id')] = $this->formatError(
+                'ISSUE_NOT_FOUND',
+                $entry
+            );
 
             return false;
         }
@@ -566,14 +585,11 @@ class SyncCommand extends Command
                 $this->userTimeEntryErrors[$entry->get('user-id')]['issue-not-in-project'][] = [
                     'entry' => $entry,
                 ];
-                $this->output->writeln(
-                    sprintf(
-                        '<error>- Issue %d does not exist in the Redmine project(s) %s. Time entry: \'%s\'</error>',
-                        $redmine_issue_number,
-                        implode(',', $project_names),
-                        $entry->toXML()
-                    )
+                $this->syncErrors[$entry->get('id')] = $this->formatError(
+                    'ISSUE_PROJECT_MISMATCH',
+                    $entry
                 );
+
                 $this->errors = true;
 
                 return false;
@@ -586,15 +602,12 @@ class SyncCommand extends Command
     /**
      * Get Redmine time entries matching a harvest entry.
      *
-     * @param array                   $redmine_issue
      * @param \Harvest\Model\DayEntry $harvest_entry
      *
      * @return array
      */
-    protected function getExistingRedmineIssueTimeEntries(
-        array $redmine_issue,
-        DayEntry $harvest_entry
-    ) {
+    protected function getExistingRedmineIssueTimeEntries(DayEntry $harvest_entry)
+    {
         if (isset($this->redmineTimeEntries[$harvest_entry->get('id')])) {
             return $this->redmineTimeEntries[$harvest_entry->get('id')];
         } else {
@@ -648,16 +661,22 @@ class SyncCommand extends Command
     ) {
         $time_entry_api = new Redmine\Api\TimeEntry($this->redmineClient);
         if ($existing_redmine_time_entry === false) {
-            $time_entry_api->create($redmine_time_entry_params);
+            /** @var \SimpleXMLElement $result */
+            $result = $time_entry_api->create($redmine_time_entry_params);
         } else {
             // Update existing entry.
             $time_entry_api->update(
                 $existing_redmine_time_entry['id'],
                 $redmine_time_entry_params
             );
+            // Redmine API does not seem to return an object for PUT requests.
+            $result = true;
         }
+        // Keep a log of the Harvest IDs that we've synced.
+        $harvest_id = $redmine_time_entry_params['custom_fields'][0]['value'];
+        $this->syncedHarvestRecords[$harvest_id] = $harvest_id;
 
-        return true;
+        return ($result) ? $result : false;
     }
 
     /**
@@ -690,7 +709,6 @@ class SyncCommand extends Command
         }
 
         $existing_redmine_time_entry = $this->getExistingRedmineIssueTimeEntries(
-            $redmine_issue,
             $harvest_entry
         );
 
@@ -701,7 +719,7 @@ class SyncCommand extends Command
 
         // If Harvest user is not mapped to a redmine user, throw an error and continue.
         if (!isset($this->userMap[$harvest_entry->get('user-id')])) {
-            $this->output->writeln(
+            $this->io->error(
                 sprintf(
                     '<error>No mapping is defined for user %d</error>',
                     $harvest_entry->get('user-id')
@@ -738,7 +756,7 @@ class SyncCommand extends Command
                     $existing_redmine_time_entry
                 );
             } catch (\Exception $e) {
-                $this->output->writeln(
+                $this->io->error(
                     sprintf(
                         '<error>Failed to create time entry for redmine issue #%d, harvest id %d, exception %s</error>',
                         $redmine_issue['issue']['id'],
@@ -750,16 +768,17 @@ class SyncCommand extends Command
                 $this->redmineClient->setImpersonateUser(null);
             }
         }
+        // Log a success if there was one (or if dry run).
         if ($save_entry_result || $this->input->getOption('dry-run')) {
-            $this->output->writeln(
-                sprintf(
-                    '<comment>%s time entry for issue #%d with %s hours (Harvest hours: %s)</comment>',
-                    ($existing_redmine_time_entry === false) > 0 ? 'Updated' : 'Created',
-                    $redmine_issue['issue']['id'],
-                    $redmine_entry_params['hours'],
-                    $harvest_entry->get('hours')
-                )
+            $this->syncSuccesses[] = $this->formatSuccess(
+                ($existing_redmine_time_entry) ? 'Updated' : 'Created',
+                $redmine_issue['issue']['id'],
+                $harvest_entry
             );
+        }
+        // If no save entry result, and not a dry run, log an error.
+        if (!$save_entry_result && !$this->input->getOption('dry-run')) {
+            $this->syncErrors[$harvest_entry->get('id')] = $this->formatError('UNABLE_TO_SYNC', $harvest_entry);
         }
 
         return $save_entry_result;
@@ -773,16 +792,13 @@ class SyncCommand extends Command
     protected function getHarvestDataForProjects()
     {
         $project_data = [];
+        $this->io->section(sprintf('Getting time entries data for %d Redmine projects', count($this->projectMap)));
+        $this->io->progressStart(count($this->projectMap));
         foreach ($this->projectMap as $harvest_id => $project) {
             $project_names = [];
             foreach ($project as $key => $projects) {
                 $project_names[] = current($projects);
             }
-            $this->output->writeln(sprintf(
-                '<info>Getting data for Harvest project %d from project %s</info>',
-                $harvest_id,
-                implode(' - ', $project_names)
-            ));
             $project_data_result = $this->harvestClient->getProject($harvest_id);
             if ($project_data_result->get('code') !== 200) {
                 $this->output->writeln(sprintf(
@@ -792,10 +808,36 @@ class SyncCommand extends Command
                 ));
                 continue;
             }
-            $project_data[] = $project_data_result;
-        }
+            $entries = $this->getHarvestTimeEntries($project_data_result);
+            if (count($entries)) {
+                foreach ($entries as $entry) {
+                    $this->cachedHarvestEntries[$entry->get('id')] = $entry;
+                }
+            }
 
-        return $project_data;
+            $this->io->progressAdvance();
+        }
+        $this->io->progressFinish();
+
+        array_filter($this->cachedHarvestEntries);
+    }
+
+    /**
+     * Return a clickable URL of the time entry in question.
+     *
+     * @param \Harvest\Model\DayEntry $entry
+     *
+     * @return string
+     */
+    protected function getClickableTimeEntryUrl($entry)
+    {
+        return sprintf(
+            'https://%s.harvestapp.com/time/day/%s/%d#timesheet_day_entry_%d',
+            $this->config['auth']['harvest']['account'],
+            str_replace('-', '/', $entry->get('spent-at')),
+            $entry->get('user-id'),
+            $entry->get('id')
+        );
     }
 
     /**
@@ -803,18 +845,16 @@ class SyncCommand extends Command
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $io = new SymfonyStyle($input, $output);
+        $this->io = $io;
         // Set input/output for use in other methods.
         $this->input = $input;
         $this->output = $output;
         $this->errors = false;
-
         // Set the Harvest Range.
         $this->setRange($input);
-        $output->writeln('<info>Syncing data for time period between '.
-            $this->getRange()->from().
-            ' and '.
-            $this->getRange()->to().'</info>');
-
+        $range = sprintf('%s to %s', $this->getRange()->from(), $this->getRange()->to());
+        $io->title(sprintf('Sumac time sync from  %s', $range));
         // Load configuration.
         $this->setConfig();
 
@@ -836,65 +876,114 @@ class SyncCommand extends Command
         // Get map of Redmine users to Harvest IDs.
         $this->populateUserMap();
 
-        // Get Harvest project entries for those found in the project map.
-        /** @var \Harvest\Model\Result $projects */
-        $projects = $this->getHarvestDataForProjects();
+        // Get Harvest time entries for those found in the project map.
+        /* @var \Harvest\Model\Result $projects */
+        $this->getHarvestDataForProjects();
+        if (count($this->skipProjects)) {
+            $this->io->warning(
+                sprintf(
+                    'Skipped projects %s, in config.yml excludes list',
+                    implode(', ', $this->skipProjects)
+                )
+            );
+        }
 
-        $output->writeln(sprintf(
-            '<info>Getting data for %d projects</info>',
-            count($projects)
-        ));
-        $entries = $this->getHarvestTimeEntries($projects);
-
-        $entries_to_log = array_filter($entries, function ($entry) {
+        $entries_to_log = array_filter($this->cachedHarvestEntries, function ($entry) {
             return strpos($entry->get('notes'), '#') !== false;
         });
 
-        $output->writeln(
+        $this->io->note(
             sprintf(
-                '<info>Found %d entries with possible Redmine IDs out of %d total</info>',
+                'Found %d entries with possible Redmine IDs out of %d total',
                 count($entries_to_log),
-                count($entries)
+                count($this->cachedHarvestEntries)
             )
         );
 
         // Sync entries.
+        $this->io->section('Processing entries');
+        $this->io->progressStart(count($entries_to_log));
         foreach ($entries_to_log as $harvest_entry) {
-            $redmine_project_names = [];
-            foreach ($this->projectMap[$harvest_entry->get('project-id')] as $value) {
-                $redmine_project_names[] = current($value);
-            }
-
-            $this->output->writeln(
-                sprintf(
-                    '<info>Processing entry: "%s" (%d) in Redmine project(s) "%s"</info>',
-                    $harvest_entry->get('notes'),
-                    $harvest_entry->get('id'),
-                    implode(',', $redmine_project_names)
-                )
-            );
             $this->syncEntry($harvest_entry);
+            $this->io->progressAdvance();
+        }
+        $this->io->progressFinish();
+
+        // If not a dry run, make another call to Redmine to ensure that the entry was really created. This is
+        // necessary since Redmine API doesn't always return errors when making POST OR PUT requests.
+        // time entries.
+        $this->redmineTimeEntries = [];
+        $this->cacheRedmineTimeEntries();
+        foreach ($this->syncedHarvestRecords as $record) {
+            if (!array_key_exists($record, $this->redmineTimeEntries)) {
+                if (!array_key_exists($record, $this->syncErrors)) {
+                    $this->syncErrors[$record] = $this->formatError(
+                        'HARVEST_ID_NOT_SYNCED',
+                        $this->cachedHarvestEntries[$record]
+                    );
+                }
+            }
         }
 
+        $users = [];
         foreach ($this->userTimeEntryErrors as $user => $errors) {
             if ($this->input->getOption('slack-notify')) {
-                $output->writeln(
-                    sprintf(
-                        '<info>Notifying %s of time entry errors over slack</info>',
-                        $user
-                    )
-                );
+                $users[] = $this->slackUserMap[$user];
                 $this->logErrorsToSlack($user, $errors);
             }
         }
+        $this->io->note(sprintf('Notified %s of time entry errors via Slack.', implode(', ', $users)));
 
-        if ($this->errors) {
-            $output->writeln('<error>Errors occurred during sync. See the logs.</error>');
+        if (count($this->syncSuccesses)) {
+            $this->renderEntries('Successes', ['Message', 'Notes'], $this->syncSuccesses);
+        }
+
+        if (count($this->syncErrors)) {
+            $this->renderEntries('Errors', ['Message', 'URL'], $this->syncErrors);
+            $io->error(
+                sprintf(
+                    '%d errors and %d successes occurred during sync. See the logs.',
+                    count($this->syncErrors),
+                    count($this->syncSuccesses)
+                )
+            );
             // Return error code.
             return 1;
         }
 
-        $output->writeln('<question>All done!</question>');
+        $this->io->success(sprintf('All done! Synced %d time entries.', count($this->syncSuccesses)));
+
         return 0;
+    }
+
+    /**
+     * Format a table.
+     */
+    private function renderEntries($section_heading, $headers, $rows)
+    {
+        $this->io->section(($section_heading));
+        $this->io->table($headers, $rows);
+    }
+
+    /**
+     * Format an error for displaying in a table.
+     */
+    private function formatError($message, $entry)
+    {
+        return [
+            'message' => $message,
+            'harvest_url' => $this->getClickableTimeEntryUrl($entry),
+        ];
+    }
+
+    /**
+     * Format a success for displaying in a table.
+     */
+    private function formatSuccess($action, $redmine_id, $entry)
+    {
+        return [
+            'message' => sprintf('%s %s hours on issue %d.', $action, $entry->get('hours'), $redmine_id),
+            'notes' => $entry->get('notes'),
+        ];
     }
 }
