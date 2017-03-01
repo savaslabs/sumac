@@ -128,8 +128,19 @@ class SyncCommand extends Command
      */
     private function configurePSpell()
     {
+        // Retrieve Redmine spelling dictionary wiki path.
+        $wiki_project_name = $this->config['spellcheck']['project_name'];
+        $wiki_page_name = $this->config['spellcheck']['wiki_page_name'];
+
+        // Load the wiki.
+        $wikiObject = new Redmine\Api\Wiki($this->redmineClient);
+        $wiki_page = $wikiObject->show($wiki_project_name, $wiki_page_name);
+
+        // Populate words to ignore. The Redmine wiki uses "\r\n" for new lines.
+        $words_to_ignore = explode("\r\n", $wiki_page['wiki_page']['text']);
+
         $this->pspellLink = pspell_new('en');
-        foreach ($this->config['spellcheck']['custom_words'] as $word) {
+        foreach ($words_to_ignore as $word) {
             pspell_add_to_session($this->pspellLink, $word);
         }
     }
@@ -858,14 +869,14 @@ class SyncCommand extends Command
         // Load configuration.
         $this->setConfig();
 
-        // Configure PSpell.
-        $this->configurePSpell();
-
         // Initialize the Harvest client.
         $this->setHarvestClient();
 
         // Initialize the Redmine client.
         $this->setRedmineClient();
+
+        // Configure PSpell.
+        $this->configurePSpell();
 
         // Cache redmine time entries.
         $this->cacheRedmineTimeEntries();
