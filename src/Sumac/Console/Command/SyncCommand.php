@@ -129,15 +129,44 @@ class SyncCommand extends Command
     private function configurePSpell()
     {
         // Retrieve Redmine spelling dictionary wiki path.
-        $wiki_project_name = $this->config['spellcheck']['project_name'];
-        $wiki_page_name = $this->config['spellcheck']['wiki_page_name'];
+        if (isset($this->config['spellcheck']['project_name']) &&
+          isset($this->config['spellcheck']['wiki_page_name'])) {
+            $wiki_project_name = $this->config['spellcheck']['project_name'];
+            $wiki_page_name = $this->config['spellcheck']['wiki_page_name'];
+        } else {
+            // Exit and log a warning if the wiki path variables are not set.
+            $this->io->warning(
+                sprintf(
+                    'Redmine dictionary wiki location not properly set in config.yml (see config.example.yml).'
+                )
+            );
+            return;
+        }
 
         // Load the wiki.
         $wikiObject = new Redmine\Api\Wiki($this->redmineClient);
         $wiki_page = $wikiObject->show($wiki_project_name, $wiki_page_name);
 
+        // Check if the wiki page text was found and is a string.
+        if (!is_string($wiki_page['wiki_page']['text'])) {
+            // Log a warning that the wiki wasn't loaded.
+            $this->io->warning(
+                sprintf(
+                    "Unable to load spelling dictionary wiki from Redmine using project name '%s' and wiki name '%s'.",
+                    $wiki_project_name,
+                    $wiki_page_name,
+                )
+            );
+            return;
+        }
+
         // Populate words to ignore. The Redmine wiki uses "\r\n" for new lines.
         $words_to_ignore = explode("\r\n", $wiki_page['wiki_page']['text']);
+
+        // Check that $words_to_ignore is an array.
+        if (!is_array($words_to_ignore)) {
+            return;
+        }
 
         $this->pspellLink = pspell_new('en');
         foreach ($words_to_ignore as $word) {

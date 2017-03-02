@@ -88,7 +88,9 @@ Fill in your credentials for Harvest and Redmine. The user account should have a
 
 ### Redmine configuration
 
-Sumac will look for a custom redmine project field called `Harvest Project ID(s)`, and use the values of that field to populate the mapping between Redmine projects and Harvest projects. You'll need to create this field if it doesn't exist, and also populate it for each project which you want to sync properly.
+Sumac will look for a custom Redmine project field called `Harvest Project ID(s)`, and use the values of that field to populate the mapping between Redmine projects and Harvest projects. You'll need to create this field if it doesn't exist, and also populate it for each project which you want to sync properly.
+
+Sumac will also look for a custom word dictionary wiki in Redmine to use when spellchecking time entries. Words in this Redmine wiki will be ignored during spellchecks. See `config.example.yml` for an example of how to set this up.
 
 ### Sync settings
 
