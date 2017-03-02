@@ -42,7 +42,7 @@ class SyncCommand extends Command
      */
     private $harvestTimeEntryFieldId = 20;
     /** @var array */
-    private $syncErrors;
+    private $syncErrors = array();
     /** @var array */
     private $syncSuccesses;
     /** @var array */
@@ -58,7 +58,7 @@ class SyncCommand extends Command
     protected $userMap;
 
     /** @var array */
-    protected $syncedHarvestRecords;
+    protected $syncedHarvestRecords = array();
 
     /** @var array */
     protected $cachedHarvestEntries;
@@ -245,6 +245,9 @@ class SyncCommand extends Command
      */
     private function cacheRedmineTimeEntries()
     {
+        // Re-initialize the Redmine client.
+        $this->setRedmineClient();
+
         $all_time_entries = $this->redmineClient->time_entry->all(array('limit' => 1000000, 'offset' => 0));
         if (!isset($all_time_entries['time_entries'])) {
             $this->output->writeln(
