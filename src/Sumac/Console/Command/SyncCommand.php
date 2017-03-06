@@ -172,7 +172,7 @@ class SyncCommand extends Command
 
         // Sort the items by alphabetical order and update the wiki page.
         $header = array_shift($words_to_ignore);
-        sort($words_to_ignore);
+        natcasesort($words_to_ignore);
         $sorted_data = implode("\r\n", $words_to_ignore);
         $sorted_text = $header."\r\n".$sorted_data;
         $wikiObject->update($wiki_project_name, $wiki_page_name, ['text' => $sorted_text]);
