@@ -140,6 +140,7 @@ class SyncCommand extends Command
                     'Redmine dictionary wiki location not properly set in config.yml (see config.example.yml).'
                 )
             );
+
             return;
         }
 
@@ -154,9 +155,10 @@ class SyncCommand extends Command
                 sprintf(
                     "Unable to load spelling dictionary wiki from Redmine using project name '%s' and wiki name '%s'.",
                     $wiki_project_name,
-                    $wiki_page_name,
+                    $wiki_page_name
                 )
             );
+
             return;
         }
 
@@ -167,6 +169,13 @@ class SyncCommand extends Command
         if (!is_array($words_to_ignore)) {
             return;
         }
+
+        // Sort the items by alphabetical order and update the wiki page.
+        $header = array_shift($words_to_ignore);
+        sort($words_to_ignore);
+        $sorted_data = implode("\r\n", $words_to_ignore);
+        $sorted_text = $header."\r\n".$sorted_data;
+        $wikiObject->update($wiki_project_name, $wiki_page_name, ['text' => $sorted_text]);
 
         $this->pspellLink = pspell_new('en');
         foreach ($words_to_ignore as $word) {
