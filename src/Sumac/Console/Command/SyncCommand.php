@@ -128,8 +128,57 @@ class SyncCommand extends Command
      */
     private function configurePSpell()
     {
+        // Retrieve Redmine spelling dictionary wiki path.
+        if (isset($this->config['spellcheck']['project_name']) &&
+          isset($this->config['spellcheck']['wiki_page_name'])) {
+            $wiki_project_name = $this->config['spellcheck']['project_name'];
+            $wiki_page_name = $this->config['spellcheck']['wiki_page_name'];
+        } else {
+            // Exit and log a warning if the wiki path variables are not set.
+            $this->io->warning(
+                sprintf(
+                    'Redmine dictionary wiki location not properly set in config.yml (see config.example.yml).'
+                )
+            );
+
+            return;
+        }
+
+        // Load the wiki.
+        $wikiObject = new Redmine\Api\Wiki($this->redmineClient);
+        $wiki_page = $wikiObject->show($wiki_project_name, $wiki_page_name);
+
+        // Check if the wiki page text was found and is a string.
+        if (!is_string($wiki_page['wiki_page']['text'])) {
+            // Log a warning that the wiki wasn't loaded.
+            $this->io->warning(
+                sprintf(
+                    "Unable to load spelling dictionary wiki from Redmine using project name '%s' and wiki name '%s'.",
+                    $wiki_project_name,
+                    $wiki_page_name
+                )
+            );
+
+            return;
+        }
+
+        // Populate words to ignore. The Redmine wiki uses "\r\n" for new lines.
+        $words_to_ignore = explode("\r\n", $wiki_page['wiki_page']['text']);
+
+        // Check that $words_to_ignore is an array.
+        if (!is_array($words_to_ignore)) {
+            return;
+        }
+
+        // Sort the items by alphabetical order and update the wiki page.
+        $header = array_shift($words_to_ignore);
+        natcasesort($words_to_ignore);
+        $sorted_data = implode("\r\n", $words_to_ignore);
+        $sorted_text = $header."\r\n".$sorted_data;
+        $wikiObject->update($wiki_project_name, $wiki_page_name, ['text' => $sorted_text]);
+
         $this->pspellLink = pspell_new('en');
-        foreach ($this->config['spellcheck']['custom_words'] as $word) {
+        foreach ($words_to_ignore as $word) {
             pspell_add_to_session($this->pspellLink, $word);
         }
     }
@@ -861,14 +910,14 @@ class SyncCommand extends Command
         // Load configuration.
         $this->setConfig();
 
-        // Configure PSpell.
-        $this->configurePSpell();
-
         // Initialize the Harvest client.
         $this->setHarvestClient();
 
         // Initialize the Redmine client.
         $this->setRedmineClient();
+
+        // Configure PSpell.
+        $this->configurePSpell();
 
         // Cache redmine time entries.
         $this->cacheRedmineTimeEntries();

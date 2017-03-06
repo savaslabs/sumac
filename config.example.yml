@@ -18,34 +18,7 @@ sync:
      - "7077045"
      - "7174765"
 spellcheck:
-  custom_words:
-    - Tim
-    - Anne
-    - Dan
-    - Yonas
-    - Oksana
-    - Chris
-    - Kosta
-    - Ro
-    - Lisa
-    - API
-    - drupal
-    - drush
-    - readme
-    - repo
-    - php
-    - mitpress
-    - omega
-    - hptn
-    - refactoring
-    - dockerization
-    - dockerize
-    - dockerizing
-    - dockerized
-    - behat
-    - dockerize
-    - redmine
-    - github
-    - Remy
-    - dev
-    - js
+  # Populate the project and page name for the spellcheck dictionary wiki in Redmine.
+  # Those values can be obtained from the wiki's path as follows: pm.savaslabs.com/projects/[project_name]/wiki/[wiki_page_name]
+  project_name: 'savaslabs'
+  wiki_page_name: 'wiki_page_name'
