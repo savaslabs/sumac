@@ -28,8 +28,6 @@ class SyncCommand extends Command
     private $io;
     /** @var array */
     private $config;
-    /** @var bool */
-    private $errors;
     /** @var \Redmine\Client */
     private $redmineClient;
     /** @var \Harvest\HarvestAPI */
@@ -292,7 +290,6 @@ class SyncCommand extends Command
                 '<error>Invalid time entry list returned from API.'
                 .' Possible that API token is not set correctly.</error>'
             );
-            $this->errors = true;
 
             return false;
         }
@@ -310,7 +307,6 @@ class SyncCommand extends Command
                                 '<error>Duplicate Redmine time entries found with Harvest ID %s</error>',
                                 $field['value']
                             );
-                            $this->errors = true;
 
                             return false;
                         } else {
@@ -612,7 +608,6 @@ class SyncCommand extends Command
                 'entry' => $entry,
             ];
 
-            $this->errors = true;
             $this->syncErrors[$entry->get('id')] = $this->formatError(
                 'ISSUE_NOT_FOUND',
                 $entry
@@ -621,34 +616,33 @@ class SyncCommand extends Command
             return false;
         }
 
-        // Validate that issue ID exists in project.
-        if (isset($this->projectMap[$entry->get('project-id')])) {
-            $project_names = [];
-            $found = false;
-            foreach ($this->projectMap[$entry->get('project-id')] as $project) {
-                $project_names[] = current($project);
-                if (isset($project[$redmine_issue['issue']['project']['id']])) {
-                    $found = true;
-                }
-            }
-            if (!$found) {
-                // The issue number doesn't belong to the Harvest project we are looking at
-                // time entries for, so continue. It's probably a GitHub issue ref.
-                $this->userTimeEntryErrors[$entry->get('user-id')]['issue-not-in-project'][] = [
-                    'entry' => $entry,
-                ];
-                $this->syncErrors[$entry->get('id')] = $this->formatError(
-                    'ISSUE_PROJECT_MISMATCH',
-                    $entry
-                );
-
-                $this->errors = true;
-
-                return false;
+        // Validate that issue ID exists in possible projects.
+        // Check if project ID exists in the map. If not, return false.
+        if (!isset($this->projectMap[$entry->get('project-id')])) {
+            $this->syncErrors[$entry->get('id')] = $this->formatError(
+                'REDMINE_PROJECT_DOESNT_EXIST',
+                $entry
+            );
+            return false;
+        }
+        $project_names = [];
+        foreach ($this->projectMap[$entry->get('project-id')] as $project) {
+            $project_names[] = current($project);
+            if (isset($project[$redmine_issue['issue']['project']['id']])) {
+                // Found, return success.
+                return $redmine_issue;
             }
         }
-
-        return $redmine_issue;
+        // The issue number doesn't belong to the Harvest project we are looking at
+        // time entries for, so continue. It's probably a GitHub issue ref.
+        $this->userTimeEntryErrors[$entry->get('user-id')]['issue-not-in-project'][] = [
+          'entry' => $entry,
+        ];
+        $this->syncErrors[$entry->get('id')] = $this->formatError(
+            'ISSUE_PROJECT_MISMATCH',
+            $entry
+        );
+        return false;
     }
 
     /**
@@ -777,7 +771,6 @@ class SyncCommand extends Command
                     $harvest_entry->get('user-id')
                 )
             );
-            $this->errors = true;
 
             return false;
         }
@@ -902,7 +895,6 @@ class SyncCommand extends Command
         // Set input/output for use in other methods.
         $this->input = $input;
         $this->output = $output;
-        $this->errors = false;
         // Set the Harvest Range.
         $this->setRange($input);
         $range = sprintf('%s to %s', $this->getRange()->from(), $this->getRange()->to());
@@ -943,6 +935,11 @@ class SyncCommand extends Command
         $entries_to_log = array_filter($this->cachedHarvestEntries, function ($entry) {
             return strpos($entry->get('notes'), '#') !== false;
         });
+
+        if (!count($entries_to_log)) {
+            $this->io->comment('No entries found for logging!');
+            return true;
+        }
 
         $this->io->note(
             sprintf(
