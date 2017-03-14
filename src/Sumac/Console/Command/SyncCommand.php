@@ -100,7 +100,13 @@ class SyncCommand extends Command
                         'dry-run',
                         'd',
                         null,
-                        'Do a simulation of what would happen'
+                        'Do a simulation of what would happen.'
+                    ),
+                  new InputOption(
+                        'log-slack-notifications',
+                        null,
+                        null,
+                        'Log all Slack notifications to stdout.'
                     ),
                     new InputOption(
                         'config',
@@ -467,16 +473,16 @@ class SyncCommand extends Command
             ]),
         ]);
 
-        if (is_array($fields)) {
+        // Log all Slack messages to stdout.
+        if ($this->input->getOption('log-slack-notifications') && is_array($fields)) {
+            $this->io->section(sprintf('Slack notifications to %s', $this->userMap[$harvest_id]));
             foreach ($fields as $stmt) {
-                $this->output->writeln(sprintf(
-                  '%s %s',
-                  $stmt['title'],
-                  $stmt['value'])
+                $this->io->note(sprintf('%s %s',
+                    $stmt['title'],
+                    $stmt['value'])
                 );
             }
         }
-
     }
 
     /**
