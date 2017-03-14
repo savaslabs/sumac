@@ -624,6 +624,7 @@ class SyncCommand extends Command
         // Validate that issue ID exists in possible projects.
         // Check if project ID exists in the map. If not, return false.
         if (!isset($this->projectMap[$entry->get('project-id')])) {
+            // TODO: Log an error here?
             return false;
         }
         $project_names = [];
