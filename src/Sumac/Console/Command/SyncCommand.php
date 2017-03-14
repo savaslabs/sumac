@@ -621,34 +621,30 @@ class SyncCommand extends Command
             return false;
         }
 
-        // Validate that issue ID exists in project.
-        if (isset($this->projectMap[$entry->get('project-id')])) {
-            $project_names = [];
-            $found = false;
-            foreach ($this->projectMap[$entry->get('project-id')] as $project) {
-                $project_names[] = current($project);
-                if (isset($project[$redmine_issue['issue']['project']['id']])) {
-                    $found = true;
-                }
-            }
-            if (!$found) {
-                // The issue number doesn't belong to the Harvest project we are looking at
-                // time entries for, so continue. It's probably a GitHub issue ref.
-                $this->userTimeEntryErrors[$entry->get('user-id')]['issue-not-in-project'][] = [
-                    'entry' => $entry,
-                ];
-                $this->syncErrors[$entry->get('id')] = $this->formatError(
-                    'ISSUE_PROJECT_MISMATCH',
-                    $entry
-                );
-
-                $this->errors = true;
-
-                return false;
+        // Validate that issue ID exists in possible projects.
+        // Check if project ID exists in the map. If not, return false.
+        if (!isset($this->projectMap[$entry->get('project-id')])) {
+            return false;
+        }
+        $project_names = [];
+        foreach ($this->projectMap[$entry->get('project-id')] as $project) {
+            $project_names[] = current($project);
+            if (isset($project[$redmine_issue['issue']['project']['id']])) {
+                // Found, return success.
+                return $redmine_issue;
             }
         }
-
-        return $redmine_issue;
+        // The issue number doesn't belong to the Harvest project we are looking at
+        // time entries for, so continue. It's probably a GitHub issue ref.
+        $this->userTimeEntryErrors[$entry->get('user-id')]['issue-not-in-project'][] = [
+          'entry' => $entry,
+        ];
+        $this->syncErrors[$entry->get('id')] = $this->formatError(
+            'ISSUE_PROJECT_MISMATCH',
+            $entry
+        );
+        $this->errors = true;
+        return false;
     }
 
     /**
