@@ -940,6 +940,11 @@ class SyncCommand extends Command
             return strpos($entry->get('notes'), '#') !== false;
         });
 
+        if (!count($entries_to_log)) {
+            $this->io->comment('No entries found for logging!');
+            return true;
+        }
+
         $this->io->note(
             sprintf(
                 'Found %d entries with possible Redmine IDs out of %d total',
