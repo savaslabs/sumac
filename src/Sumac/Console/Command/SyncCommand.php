@@ -365,8 +365,7 @@ class SyncCommand extends Command
             'no-issue-number' => 'Time entries with no issue number',
             'missing-issue' => 'Time entries where no matching redmine issue was found',
             'issue-not-in-project' => 'Redmine issue\'s project doesn\'t match up with the Harvest project.',
-            'spelling' => 'Possible spelling errors',
-            'rounding' => 'Possible rounding errors',
+            'spelling' => 'Possible spelling errors'
         ];
 
         $error_message_formatters = [
@@ -397,23 +396,11 @@ class SyncCommand extends Command
             },
             'spelling' => function ($error) {
                 return sprintf(
-                    "%s -- %s\n_Potential misspellings: %s_\n%s",
-                    substr($error['entry']->get('spent-at'), 0, 10),
-                    $error['entry']->get('notes'),
+                    "Potential misspellings: %s_\n%s",
                     implode(', ', $error['spelling-errors']),
                     $this->getClickableTimeEntryUrl($error['entry'])
                 );
-            },
-            'rounding' => function ($error) {
-                return sprintf(
-                    "%s -- %s\nHours were: %.2f, should be %.2f\n%s",
-                    substr($error['entry']->get('spent-at'), 0, 10),
-                    $error['entry']->get('notes'),
-                    $error['entry']->get('hours'),
-                    $error['rounded-hours'],
-                    $this->getClickableTimeEntryUrl($error['entry'])
-                );
-            },
+            }
         ];
 
         $fields = [];
@@ -428,9 +415,8 @@ class SyncCommand extends Command
                         return -1;
                     } elseif ($b_date < $a_date) {
                         return 1;
-                    } else {
-                        return 0;
                     }
+                    return 0;
                 }
             );
 
@@ -442,14 +428,13 @@ class SyncCommand extends Command
 
         // Set time of day so slackbot can be a bit more conversational.
         $hour = date('H', time());
+        $greeting = 'Sumac never sleeps';
         if ($hour > 6 && $hour <= 11) {
             $greeting = 'Good morning';
         } elseif ($hour > 11 && $hour <= 16) {
             $greeting = 'Good afternoon';
         } elseif ($hour > 16 && $hour <= 23) {
             $greeting = 'Good evening';
-        } else {
-            $greeting = 'Sumac never sleeps';
         }
 
         $client = new \GuzzleHttp\Client();
@@ -797,14 +782,6 @@ class SyncCommand extends Command
             $redmine_issue,
             $harvest_entry
         );
-
-        // Check rounding.
-        if ($redmine_entry_params['hours'] != $harvest_entry->get('hours')) {
-            $this->userTimeEntryErrors[$harvest_entry->get('user-id')]['rounding'][] = [
-                'entry' => $harvest_entry,
-                'rounded-hours' => $redmine_entry_params['hours'],
-            ];
-        }
 
         $save_entry_result = false;
         $this->setRedmineClient();
