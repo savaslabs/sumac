@@ -620,8 +620,8 @@ class SyncCommand extends Command
         // Check if project ID exists in the map. If not, return false.
         if (!isset($this->projectMap[$entry->get('project-id')])) {
             $this->syncErrors[$entry->get('id')] = $this->formatError(
-              'REDMINE_PROJECT_DOESNT_EXIST',
-              $entry
+                'REDMINE_PROJECT_DOESNT_EXIST',
+                $entry
             );
             return false;
         }
