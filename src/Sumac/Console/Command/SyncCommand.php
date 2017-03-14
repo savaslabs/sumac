@@ -28,8 +28,6 @@ class SyncCommand extends Command
     private $io;
     /** @var array */
     private $config;
-    /** @var bool */
-    private $errors;
     /** @var \Redmine\Client */
     private $redmineClient;
     /** @var \Harvest\HarvestAPI */
@@ -292,7 +290,6 @@ class SyncCommand extends Command
                 '<error>Invalid time entry list returned from API.'
                 .' Possible that API token is not set correctly.</error>'
             );
-            $this->errors = true;
 
             return false;
         }
@@ -310,7 +307,6 @@ class SyncCommand extends Command
                                 '<error>Duplicate Redmine time entries found with Harvest ID %s</error>',
                                 $field['value']
                             );
-                            $this->errors = true;
 
                             return false;
                         } else {
@@ -612,7 +608,6 @@ class SyncCommand extends Command
                 'entry' => $entry,
             ];
 
-            $this->errors = true;
             $this->syncErrors[$entry->get('id')] = $this->formatError(
                 'ISSUE_NOT_FOUND',
                 $entry
@@ -647,7 +642,6 @@ class SyncCommand extends Command
             'ISSUE_PROJECT_MISMATCH',
             $entry
         );
-        $this->errors = true;
         return false;
     }
 
@@ -777,7 +771,6 @@ class SyncCommand extends Command
                     $harvest_entry->get('user-id')
                 )
             );
-            $this->errors = true;
 
             return false;
         }
@@ -902,7 +895,6 @@ class SyncCommand extends Command
         // Set input/output for use in other methods.
         $this->input = $input;
         $this->output = $output;
-        $this->errors = false;
         // Set the Harvest Range.
         $this->setRange($input);
         $range = sprintf('%s to %s', $this->getRange()->from(), $this->getRange()->to());
