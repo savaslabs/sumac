@@ -102,7 +102,7 @@ class SyncCommand extends Command
                         null,
                         'Do a simulation of what would happen.'
                     ),
-                  new InputOption(
+                    new InputOption(
                         'log-slack-notifications',
                         null,
                         null,
@@ -396,7 +396,7 @@ class SyncCommand extends Command
             },
             'spelling' => function ($error) {
                 return sprintf(
-                    "Potential misspellings: %s_\n%s",
+                    "Potential misspellings: _%s_\n%s",
                     implode(', ', $error['spelling-errors']),
                     $this->getClickableTimeEntryUrl($error['entry'])
                 );
@@ -462,9 +462,12 @@ class SyncCommand extends Command
         if ($this->input->getOption('log-slack-notifications') && is_array($fields)) {
             $this->io->section(sprintf('Slack notifications to %s', $this->userMap[$harvest_id]));
             foreach ($fields as $stmt) {
-                $this->io->note(sprintf('%s %s',
-                    $stmt['title'],
-                    $stmt['value'])
+                $this->io->note(
+                    sprintf(
+                        '%s %s',
+                        $stmt['title'],
+                        $stmt['value']
+                    )
                 );
             }
         }
