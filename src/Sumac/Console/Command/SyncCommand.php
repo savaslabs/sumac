@@ -731,18 +731,27 @@ class SyncCommand extends Command
             $issue_api = new Redmine\Api\Issue($this->redmineClient);
             $redmine_issue = $issue_api->show($redmine_time_entry_params['issue_id']);
             // Get index of the Remaining Time field.
-            $remaining_time_key = array_search($this->remainingTimeFieldId, array_column($redmine_issue['issue']['custom_fields'], 'id'));
+            $remaining_time_key = array_search(
+                $this->remainingTimeFieldId,
+                array_column($redmine_issue['issue']['custom_fields'], 'id')
+            );
             if ($remaining_time_key) {
-                $estimated_hours = isset($redmine_issue['issue']['estimated_hours']) ? $redmine_issue['issue']['estimated_hours'] : 0;
-                $spent_hours = isset($redmine_issue['issue']['spent_hours']) ? $redmine_issue['issue']['spent_hours'] : 0;
-                $redmine_issue['issue']['custom_fields'][$remaining_time_key]['value'] = $estimated_hours - $spent_hours;
-                // TODO: If estimated - spent = less than zero, ping PM via Slack.
-                $issue_api->update(
-                    $redmine_time_entry_params['issue_id'],
-                    [
-                      'custom_fields' => $redmine_issue['issue']['custom_fields'],
-                    ]
-                );
+                if (isset($redmine_issue['issue']['estimated_hours'])
+                    && $redmine_issue['issue']['estimated_hours'] > 0) {
+                    $estimated_hours = isset($redmine_issue['issue']['estimated_hours']) ?
+                        $redmine_issue['issue']['estimated_hours'] : 0;
+                    $spent_hours = isset($redmine_issue['issue']['spent_hours']) ?
+                        $redmine_issue['issue']['spent_hours'] : 0;
+                    $redmine_issue['issue']['custom_fields'][$remaining_time_key]['value'] =
+                        $estimated_hours - $spent_hours;
+                    // TODO: If estimated - spent = less than zero, ping PM via Slack.
+                    $issue_api->update(
+                        $redmine_time_entry_params['issue_id'],
+                        [
+                            'custom_fields' => $redmine_issue['issue']['custom_fields'],
+                        ]
+                    );
+                }
             }
         }
 
