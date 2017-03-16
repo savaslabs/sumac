@@ -39,6 +39,10 @@ class SyncCommand extends Command
      * on Redmine time entries
      */
     private $harvestTimeEntryFieldId = 20;
+    /** @var int
+     * Custom field ID for the Remaining Time field on Redmine issues.
+     */
+    private $remainingTimeFieldId = 23;
     /** @var array */
     private $syncErrors = array();
     /** @var array */
@@ -726,6 +730,35 @@ class SyncCommand extends Command
         // Keep a log of the Harvest IDs that we've synced.
         $harvest_id = $redmine_time_entry_params['custom_fields'][0]['value'];
         $this->syncedHarvestRecords[$harvest_id] = $harvest_id;
+
+        // Update the "Remaining Time" field.
+        if ($result) {
+            $issue_api = new Redmine\Api\Issue($this->redmineClient);
+            $redmine_issue = $issue_api->show($redmine_time_entry_params['issue_id']);
+            // Get index of the Remaining Time field.
+            $remaining_time_key = array_search(
+                $this->remainingTimeFieldId,
+                array_column($redmine_issue['issue']['custom_fields'], 'id')
+            );
+            if ($remaining_time_key) {
+                if (isset($redmine_issue['issue']['estimated_hours'])
+                    && $redmine_issue['issue']['estimated_hours'] > 0) {
+                    $estimated_hours = isset($redmine_issue['issue']['estimated_hours']) ?
+                        $redmine_issue['issue']['estimated_hours'] : 0;
+                    $spent_hours = isset($redmine_issue['issue']['spent_hours']) ?
+                        $redmine_issue['issue']['spent_hours'] : 0;
+                    $redmine_issue['issue']['custom_fields'][$remaining_time_key]['value'] =
+                        $estimated_hours - $spent_hours;
+                    // TODO: If estimated - spent = less than zero, ping PM via Slack.
+                    $issue_api->update(
+                        $redmine_time_entry_params['issue_id'],
+                        [
+                            'custom_fields' => $redmine_issue['issue']['custom_fields'],
+                        ]
+                    );
+                }
+            }
+        }
 
         return ($result) ? $result : false;
     }
