@@ -781,7 +781,7 @@ class SyncCommand extends Command
         );
 
         // If there are existing Redmine time entries matching this harvest entry and we are not updating, skip.
-        if ($existing_redmine_time_entry !== false > 0 && !$this->input->getOption('update')) {
+        if ($existing_redmine_time_entry !== false && !$this->input->getOption('update')) {
             return false;
         }
 
