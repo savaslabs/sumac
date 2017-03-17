@@ -223,23 +223,6 @@ class SyncCommand extends Command
      */
     private function setConfig()
     {
-        $env_vars = false;
-        // If environment variables are set, use them.
-        if (getenv('SUMAC_HARVEST_MAIL')) {
-            $this->config['auth']['harvest']['mail'] = getenv('SUMAC_HARVEST_MAIL');
-            $env_vars = true;
-            $this->config['auth']['harvest']['pass'] = getenv('SUMAC_HARVEST_PASS');
-            $this->config['auth']['harvest']['account'] = getenv('SUMAC_HARVEST_ACCOUNT');
-            $this->config['auth']['redmine']['apikey'] = getenv('SUMAC_REDMINE_APIKEY');
-            $this->config['auth']['redmine']['url'] = getenv('SUMAC_REDMINE_URL');
-        }
-        if (getenv('SUMAC_SYNC_PROJECTS_EXCLUDE')) {
-            $this->config['sync']['projects']['exclude'] = explode(',', getenv('SUMAC_SYNC_PROJECTS_EXCLUDE'));
-        }
-        if ($env_vars) {
-            return;
-        }
-
         if ($config_path = $this->input->getOption('config')) {
             if (!file_exists($config_path)) {
                 throw new \Exception(sprintf('Could not find the config.yml file at %s', $config_path));
