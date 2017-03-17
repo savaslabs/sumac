@@ -748,13 +748,13 @@ class SyncCommand extends Command
     }
 
     /**
-     * Sync a single harvest time entry.
+     * Spell check a single harvest time entry.
      *
      * @param \Harvest\Model\DayEntry $harvest_entry
      *
      * @return bool
      */
-    protected function syncEntry(DayEntry $harvest_entry)
+    protected function spellCheckEntry(DayEntry $harvest_entry)
     {
         // Check spelling.
         $words = explode(' ', preg_replace('/[^a-z]+/i', ' ', $harvest_entry->get('notes')));
@@ -766,11 +766,21 @@ class SyncCommand extends Command
         }
         if ($spelling_errors) {
             $this->userTimeEntryErrors[$harvest_entry->get('user-id')]['spelling'][] = [
-                'entry' => $harvest_entry,
-                'spelling-errors' => $spelling_errors,
+              'entry' => $harvest_entry,
+              'spelling-errors' => $spelling_errors,
             ];
         }
+    }
 
+    /**
+     * Sync a single harvest time entry.
+     *
+     * @param \Harvest\Model\DayEntry $harvest_entry
+     *
+     * @return bool
+     */
+    protected function syncEntry(DayEntry $harvest_entry)
+    {
         $redmine_issue = $this->getRedmineIssue($harvest_entry);
         if (!$redmine_issue) {
             return false;
@@ -966,8 +976,15 @@ class SyncCommand extends Command
         // Sync entries.
         $this->io->section('Processing entries');
         $this->io->progressStart(count($entries_to_log));
+
+        $spell_check_only = $this->config['sync']['projects']['spell_check_only'];
         foreach ($entries_to_log as $harvest_entry) {
-            $this->syncEntry($harvest_entry);
+            $this->spellCheckEntry($harvest_entry);
+
+            if (!in_array($harvest_entry->get('project-id'), $spell_check_only)) {
+                $this->syncEntry($harvest_entry);
+            }
+
             $this->io->progressAdvance();
         }
         $this->io->progressFinish();
