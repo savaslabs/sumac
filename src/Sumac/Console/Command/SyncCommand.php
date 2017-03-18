@@ -717,6 +717,8 @@ class SyncCommand extends Command
 
         // Update the "Remaining Time" field.
         if ($result) {
+            // Re-initialize the Redmine client.
+            $this->setRedmineClient();
             $issue_api = new Redmine\Api\Issue($this->redmineClient);
             $redmine_issue = $issue_api->show($redmine_time_entry_params['issue_id']);
             // Get index of the Remaining Time field.
