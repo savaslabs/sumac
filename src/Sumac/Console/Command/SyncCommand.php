@@ -50,6 +50,10 @@ class SyncCommand extends Command
     /** @var array */
     private $skipProjects;
     /** @var array
+     * Stores which projects to load Harvest & Redmine data for when debugging.
+     */
+    protected $debugProjects = array();
+    /** @var array
      * Maps harvest IDs to Redmine IDs
      */
     protected $projectMap;
@@ -278,7 +282,42 @@ class SyncCommand extends Command
         // Re-initialize the Redmine client.
         $this->setRedmineClient();
 
-        $all_time_entries = $this->redmineClient->time_entry->all(array('limit' => 1000000, 'offset' => 0));
+        // When debugging, limit Redmine time entry caching to Redmine projects
+        // associated with the Harvest projects specified in the config.
+        $all_time_entries = array();
+        if (!empty($this->debugProjects)) {
+            $fetched_projects = array();
+            foreach ($this->debugProjects as $harvest_id => $redmine_projects) {
+                foreach ($redmine_projects as $project_info) {
+                    $project_ids = array_keys($project_info);
+                    $project_id = array_shift($project_ids);
+                    if (!in_array($project_id, $fetched_projects)) {
+                        $project_time_entries = $this->redmineClient->time_entry->all(array(
+                          'limit' => 1000000,
+                          'offset' => 0,
+                          'project_id' => $project_id,
+                        ));
+                        if (isset($project_time_entries['time_entries'])) {
+                            if (!isset($all_time_entries['time_entries'])) {
+                                $all_time_entries['time_entries'] = $project_time_entries['time_entries'];
+                            } else {
+                                $all_time_entries['time_entries'] = array_merge(
+                                    $all_time_entries['time_entries'],
+                                    $project_time_entries['time_entries'],
+                                );
+                            }
+                        }
+                        array_push($fetched_projects, $project_id);
+                    }
+                }
+            }
+        } else {
+            $all_time_entries = $this->redmineClient->time_entry->all(array(
+              'limit' => 1000000,
+              'offset' => 0
+            ));
+        }
+
         if (!isset($all_time_entries['time_entries'])) {
             $this->output->writeln(
                 '<error>Invalid time entry list returned from API.'
@@ -486,6 +525,17 @@ class SyncCommand extends Command
                 }
             }
         }
+
+        // When debugging, limit project map to projects specified in config.
+        if (is_array($this->config['sync']['projects']['debug_projects'])) {
+            foreach ($this->projectMap as $harvest_id => $redmine_projects) {
+                if (in_array($harvest_id, $this->config['sync']['projects']['debug_projects'])) {
+                    $this->debugProjects[$harvest_id] = $redmine_projects;
+                }
+            }
+            $this->projectMap = $this->debugProjects;
+        }
+
         if (!count($this->projectMap)) {
             throw new Exception(('Unable to populate project map!'));
         }
@@ -937,11 +987,11 @@ class SyncCommand extends Command
         // Configure PSpell.
         $this->configurePSpell();
 
-        // Cache redmine time entries.
-        $this->cacheRedmineTimeEntries();
-
         // Map harvest projects to redmine projects.
         $this->populateProjectMap();
+
+        // Cache redmine time entries.
+        $this->cacheRedmineTimeEntries();
 
         // Get map of Redmine users to Harvest IDs.
         $this->populateUserMap();
