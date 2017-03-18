@@ -301,10 +301,7 @@ class SyncCommand extends Command
                             if (!isset($all_time_entries['time_entries'])) {
                                 $all_time_entries['time_entries'] = $project_time_entries['time_entries'];
                             } else {
-                                $all_time_entries['time_entries'] = array_merge(
-                                    $all_time_entries['time_entries'],
-                                    $project_time_entries['time_entries'],
-                                );
+                                $all_time_entries['time_entries'] = array_merge($all_time_entries['time_entries'], $project_time_entries['time_entries']);
                             }
                         }
                         array_push($fetched_projects, $project_id);
