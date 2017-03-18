@@ -14,10 +14,10 @@ sync:
  projects:
    # Exclude Harvest project IDs from time entry processing.
    exclude:
-     #- "5990760"
+     #- '5990760'
    # Harvest projects to spellcheck but not sync
    spell_check_only:
-     #- "5990760"
+     #- '5990760'
    # Speed up local debugging by only fetching Harvest time entries and
    # Redmine issues associated with the following Harvest project id's.
    debug_projects:
