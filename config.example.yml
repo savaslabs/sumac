@@ -14,9 +14,10 @@ sync:
  projects:
    # Exclude Harvest project IDs from time entry processing.
    exclude:
-     - "5990760"
-     - "7077045"
-     - "7174765"
+     #- "5990760"
+   # Harvest projects to spellcheck but not sync
+   spell_check_only:
+     #- "5990760"
 spellcheck:
   # Populate the project and page name for the spellcheck dictionary wiki in Redmine.
   # Those values can be obtained from the wiki's path as follows: pm.savaslabs.com/projects/[project_name]/wiki/[wiki_page_name]
