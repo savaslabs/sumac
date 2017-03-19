@@ -596,7 +596,7 @@ class SyncCommand extends Command
 
         if (!$redmine_issue_number) {
             // The resulting value is not a number.
-            $this->userTimeEntryErrors[$entry->get('user-id')]['no-number'][] = [
+            $this->userTimeEntryErrors[$entry->get('user-id')]['no-issue-number'][] = [
                 'entry' => $entry,
             ];
             $this->syncErrors[$entry->get('id')] = $this->formatError(
