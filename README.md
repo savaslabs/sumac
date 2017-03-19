@@ -59,7 +59,7 @@ In order to debug locally, you'll need to install some dependencies on your host
 - Set some breakpoints in your code
 - In PhpStorm, select "Debug Sumac" from under "Run"
 
-During debugging, it can take a while to fetch and cache all of the Redmine time entries and to fetch all Havrest time entries for the specified period. To speed up local development, you can specify certain projects to debug by listing their Harvest ids in your config.yml. When specified, Sumac will only fetch and cache time entries from Redmine for any projects associated with those Harvest ids, and Sumac will only fetch time entries from Havrest for those Harvest project ids. 
+During debugging, it can take a while to fetch and cache all of the Redmine time entries and to fetch all Harvest time entries for the specified period. To speed up local development, you can specify certain projects to debug by listing their Harvest ids in your config.yml. When specified, Sumac will only fetch and cache time entries from Redmine for any projects associated with those Harvest ids, and Sumac will only fetch time entries from Harvest for those Harvest project ids. 
 
 ## Requirements
 
