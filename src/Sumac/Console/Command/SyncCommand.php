@@ -282,30 +282,8 @@ class SyncCommand extends Command
 
         // When debugging, limit Redmine time entry caching to Redmine projects
         // associated with the Harvest projects specified in the config.
-        $all_time_entries = array();
         if (!empty($this->debugProjects)) {
-            $fetched_projects = array();
-            foreach ($this->debugProjects as $harvest_id => $redmine_projects) {
-                foreach ($redmine_projects as $project_info) {
-                    $project_ids = array_keys($project_info);
-                    $project_id = array_shift($project_ids);
-                    if (!in_array($project_id, $fetched_projects)) {
-                        $project_time_entries = $this->redmineClient->time_entry->all(array(
-                          'limit' => 1000000,
-                          'offset' => 0,
-                          'project_id' => $project_id,
-                        ));
-                        if (isset($project_time_entries['time_entries'])) {
-                            if (!isset($all_time_entries['time_entries'])) {
-                                $all_time_entries['time_entries'] = $project_time_entries['time_entries'];
-                            } else {
-                                $all_time_entries['time_entries'] = array_merge($all_time_entries['time_entries'], $project_time_entries['time_entries']);
-                            }
-                        }
-                        array_push($fetched_projects, $project_id);
-                    }
-                }
-            }
+            $all_time_entries = $this->getDebugProjectsTimeEntries();
         } else {
             $all_time_entries = $this->redmineClient->time_entry->all(array(
               'limit' => 1000000,
@@ -344,6 +322,41 @@ class SyncCommand extends Command
                 }
             }
         }
+    }
+
+    /**
+     * Returns Redmine time entries limited to Redmine projects associated with
+     * the Harvest projects specified in debugProjects.
+     *
+     * @return array
+     */
+    private function getDebugProjectsTimeEntries()
+    {
+        $all_time_entries = array();
+        $fetched_projects = array();
+        foreach ($this->debugProjects as $harvest_id => $redmine_projects) {
+            foreach ($redmine_projects as $project_info) {
+                $project_ids = array_keys($project_info);
+                $project_id = array_shift($project_ids);
+                if (!in_array($project_id, $fetched_projects)) {
+                    $project_time_entries = $this->redmineClient->time_entry->all(array(
+                      'limit' => 1000000,
+                      'offset' => 0,
+                      'project_id' => $project_id,
+                    ));
+                    if (isset($project_time_entries['time_entries'])) {
+                        if (!isset($all_time_entries['time_entries'])) {
+                            $all_time_entries['time_entries'] = $project_time_entries['time_entries'];
+                        } else {
+                            $all_time_entries['time_entries'] = array_merge($all_time_entries['time_entries'], $project_time_entries['time_entries']);
+                        }
+                    }
+                    array_push($fetched_projects, $project_id);
+                }
+            }
+        }
+
+        return $all_time_entries;
     }
 
     /**
