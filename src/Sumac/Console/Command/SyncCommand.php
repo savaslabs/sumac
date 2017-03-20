@@ -1055,13 +1055,15 @@ class SyncCommand extends Command
         }
 
         $users = [];
-        foreach ($this->userTimeEntryErrors as $user => $errors) {
-            if ($this->input->getOption('slack-notify')) {
-                $users[] = $this->slackUserMap[$user];
-                $this->logErrorsToSlack($user, $errors);
+        if (count($this->userTimeEntryErrors)) {
+            foreach ($this->userTimeEntryErrors as $user => $errors) {
+                if ($this->input->getOption('slack-notify')) {
+                    $users[] = $this->slackUserMap[$user];
+                    $this->logErrorsToSlack($user, $errors);
+                }
             }
+            $this->io->note(sprintf('Notified %s of time entry errors via Slack.', implode(', ', $users)));
         }
-        $this->io->note(sprintf('Notified %s of time entry errors via Slack.', implode(', ', $users)));
 
         if (count($this->syncSuccesses)) {
             $this->renderEntries('Successes', ['Message', 'Notes'], $this->syncSuccesses);
