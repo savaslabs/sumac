@@ -12,9 +12,6 @@ auth:
     # debug-user: '@tim'
 sync:
  projects:
-   # Exclude Harvest project IDs from time entry processing.
-   exclude:
-     #- '5990760'
    # Harvest projects to spellcheck but not sync
    spell_check_only:
      #- '5990760'

@@ -47,8 +47,6 @@ class SyncCommand extends Command
     private $syncErrors = array();
     /** @var array */
     private $syncSuccesses;
-    /** @var array */
-    private $skipProjects;
     /** @var array
      * Stores which projects to load Harvest & Redmine data for when debugging.
      */
@@ -588,14 +586,6 @@ class SyncCommand extends Command
             // TODO: Better error message.j
             throw new Exception('Unable to load project data');
         }
-        if ((isset($this->config['sync']['projects']['exclude'])) && (in_array(
-            $project_data->get('id'),
-            $this->config['sync']['projects']['exclude']
-        ))) {
-            $this->skipProjects[] = $project_data->get('name');
-
-            return;
-        }
 
         $project_entries = $this->harvestClient->getProjectEntries(
             $project_data->get('id'),
@@ -996,14 +986,6 @@ class SyncCommand extends Command
         // Get Harvest time entries for those found in the project map.
         /* @var \Harvest\Model\Result $projects */
         $this->getHarvestDataForProjects();
-        if (count($this->skipProjects)) {
-            $this->io->warning(
-                sprintf(
-                    'Skipped projects %s, in config.yml excludes list',
-                    implode(', ', $this->skipProjects)
-                )
-            );
-        }
 
         $entries_to_log = array_filter($this->cachedHarvestEntries, function ($entry) {
             return strpos($entry->get('notes'), '#') !== false;
