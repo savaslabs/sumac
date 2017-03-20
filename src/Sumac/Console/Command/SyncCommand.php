@@ -1026,7 +1026,7 @@ class SyncCommand extends Command
         $this->io->section('Processing entries');
         $this->io->progressStart(count($entries_to_log));
 
-        $spell_check_only = $this->config['sync']['projects']['spell_check_only'];
+        $spell_check_only = !empty($this->config['sync']['projects']['spell_check_only']) ? $this->config['sync']['projects']['spell_check_only'] : [];
         foreach ($entries_to_log as $harvest_entry) {
             $this->spellCheckEntry($harvest_entry);
 
