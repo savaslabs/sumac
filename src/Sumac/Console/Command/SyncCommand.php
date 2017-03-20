@@ -47,8 +47,10 @@ class SyncCommand extends Command
     private $syncErrors = array();
     /** @var array */
     private $syncSuccesses;
-    /** @var array */
-    private $skipProjects;
+    /** @var array
+     * Stores which projects to load Harvest & Redmine data for when debugging.
+     */
+    protected $debugProjects = array();
     /** @var array
      * Maps harvest IDs to Redmine IDs
      */
@@ -179,10 +181,11 @@ class SyncCommand extends Command
         }
 
         // Sort the items by alphabetical order and update the wiki page.
+        $title = array_shift($words_to_ignore);
         $header = array_shift($words_to_ignore);
         natcasesort($words_to_ignore);
         $sorted_data = implode("\r\n", $words_to_ignore);
-        $sorted_text = $header."\r\n".$sorted_data;
+        $sorted_text = $title."\r\n".$header."\r\n".$sorted_data;
         $wikiObject->update($wiki_project_name, $wiki_page_name, ['text' => $sorted_text]);
 
         $this->pspellLink = pspell_new('en');
@@ -222,23 +225,6 @@ class SyncCommand extends Command
      */
     private function setConfig()
     {
-        $env_vars = false;
-        // If environment variables are set, use them.
-        if (getenv('SUMAC_HARVEST_MAIL')) {
-            $this->config['auth']['harvest']['mail'] = getenv('SUMAC_HARVEST_MAIL');
-            $env_vars = true;
-            $this->config['auth']['harvest']['pass'] = getenv('SUMAC_HARVEST_PASS');
-            $this->config['auth']['harvest']['account'] = getenv('SUMAC_HARVEST_ACCOUNT');
-            $this->config['auth']['redmine']['apikey'] = getenv('SUMAC_REDMINE_APIKEY');
-            $this->config['auth']['redmine']['url'] = getenv('SUMAC_REDMINE_URL');
-        }
-        if (getenv('SUMAC_SYNC_PROJECTS_EXCLUDE')) {
-            $this->config['sync']['projects']['exclude'] = explode(',', getenv('SUMAC_SYNC_PROJECTS_EXCLUDE'));
-        }
-        if ($env_vars) {
-            return;
-        }
-
         if ($config_path = $this->input->getOption('config')) {
             if (!file_exists($config_path)) {
                 throw new \Exception(sprintf('Could not find the config.yml file at %s', $config_path));
@@ -294,7 +280,17 @@ class SyncCommand extends Command
         // Re-initialize the Redmine client.
         $this->setRedmineClient();
 
-        $all_time_entries = $this->redmineClient->time_entry->all(array('limit' => 1000000, 'offset' => 0));
+        // When debugging, limit Redmine time entry caching to Redmine projects
+        // associated with the Harvest projects specified in the config.
+        if (!empty($this->debugProjects)) {
+            $all_time_entries = $this->getDebugProjectsTimeEntries();
+        } else {
+            $all_time_entries = $this->redmineClient->time_entry->all(array(
+              'limit' => 1000000,
+              'offset' => 0
+            ));
+        }
+
         if (!isset($all_time_entries['time_entries'])) {
             $this->output->writeln(
                 '<error>Invalid time entry list returned from API.'
@@ -326,6 +322,41 @@ class SyncCommand extends Command
                 }
             }
         }
+    }
+
+    /**
+     * Returns Redmine time entries limited to Redmine projects associated with
+     * the Harvest projects specified in debugProjects.
+     *
+     * @return array
+     */
+    private function getDebugProjectsTimeEntries()
+    {
+        $all_time_entries = array();
+        $fetched_projects = array();
+        foreach ($this->debugProjects as $harvest_id => $redmine_projects) {
+            foreach ($redmine_projects as $project_info) {
+                $project_ids = array_keys($project_info);
+                $project_id = array_shift($project_ids);
+                if (!in_array($project_id, $fetched_projects)) {
+                    $project_time_entries = $this->redmineClient->time_entry->all(array(
+                      'limit' => 1000000,
+                      'offset' => 0,
+                      'project_id' => $project_id,
+                    ));
+                    if (isset($project_time_entries['time_entries'])) {
+                        if (!isset($all_time_entries['time_entries'])) {
+                            $all_time_entries['time_entries'] = $project_time_entries['time_entries'];
+                        } else {
+                            $all_time_entries['time_entries'] = array_merge($all_time_entries['time_entries'], $project_time_entries['time_entries']);
+                        }
+                    }
+                    array_push($fetched_projects, $project_id);
+                }
+            }
+        }
+
+        return $all_time_entries;
     }
 
     /**
@@ -502,6 +533,17 @@ class SyncCommand extends Command
                 }
             }
         }
+
+        // When debugging, limit project map to projects specified in config.
+        if (is_array($this->config['sync']['projects']['debug_projects'])) {
+            foreach ($this->projectMap as $harvest_id => $redmine_projects) {
+                if (in_array($harvest_id, $this->config['sync']['projects']['debug_projects'])) {
+                    $this->debugProjects[$harvest_id] = $redmine_projects;
+                }
+            }
+            $this->projectMap = $this->debugProjects;
+        }
+
         if (!count($this->projectMap)) {
             throw new Exception(('Unable to populate project map!'));
         }
@@ -556,14 +598,6 @@ class SyncCommand extends Command
         if (!is_object($project_data)) {
             // TODO: Better error message.j
             throw new Exception('Unable to load project data');
-        }
-        if ((isset($this->config['sync']['projects']['exclude'])) && (in_array(
-            $project_data->get('id'),
-            $this->config['sync']['projects']['exclude']
-        ))) {
-            $this->skipProjects[] = $project_data->get('name');
-
-            return;
         }
 
         $project_entries = $this->harvestClient->getProjectEntries(
@@ -733,6 +767,8 @@ class SyncCommand extends Command
 
         // Update the "Remaining Time" field.
         if ($result) {
+            // Re-initialize the Redmine client.
+            $this->setRedmineClient();
             $issue_api = new Redmine\Api\Issue($this->redmineClient);
             $redmine_issue = $issue_api->show($redmine_time_entry_params['issue_id']);
             // Get index of the Remaining Time field.
@@ -764,13 +800,13 @@ class SyncCommand extends Command
     }
 
     /**
-     * Sync a single harvest time entry.
+     * Spell check a single harvest time entry.
      *
      * @param \Harvest\Model\DayEntry $harvest_entry
      *
      * @return bool
      */
-    protected function syncEntry(DayEntry $harvest_entry)
+    protected function spellCheckEntry(DayEntry $harvest_entry)
     {
         // Check spelling.
         $words = explode(' ', preg_replace('/[^a-z]+/i', ' ', $harvest_entry->get('notes')));
@@ -782,11 +818,21 @@ class SyncCommand extends Command
         }
         if ($spelling_errors) {
             $this->userTimeEntryErrors[$harvest_entry->get('user-id')]['spelling'][] = [
-                'entry' => $harvest_entry,
-                'spelling-errors' => $spelling_errors,
+              'entry' => $harvest_entry,
+              'spelling-errors' => $spelling_errors,
             ];
         }
+    }
 
+    /**
+     * Sync a single harvest time entry.
+     *
+     * @param \Harvest\Model\DayEntry $harvest_entry
+     *
+     * @return bool
+     */
+    protected function syncEntry(DayEntry $harvest_entry)
+    {
         $redmine_issue = $this->getRedmineIssue($harvest_entry);
         if (!$redmine_issue) {
             return false;
@@ -797,7 +843,7 @@ class SyncCommand extends Command
         );
 
         // If there are existing Redmine time entries matching this harvest entry and we are not updating, skip.
-        if ($existing_redmine_time_entry !== false > 0 && !$this->input->getOption('update')) {
+        if ($existing_redmine_time_entry !== false && !$this->input->getOption('update')) {
             return false;
         }
 
@@ -941,11 +987,11 @@ class SyncCommand extends Command
         // Configure PSpell.
         $this->configurePSpell();
 
-        // Cache redmine time entries.
-        $this->cacheRedmineTimeEntries();
-
         // Map harvest projects to redmine projects.
         $this->populateProjectMap();
+
+        // Cache redmine time entries.
+        $this->cacheRedmineTimeEntries();
 
         // Get map of Redmine users to Harvest IDs.
         $this->populateUserMap();
@@ -953,14 +999,6 @@ class SyncCommand extends Command
         // Get Harvest time entries for those found in the project map.
         /* @var \Harvest\Model\Result $projects */
         $this->getHarvestDataForProjects();
-        if (count($this->skipProjects)) {
-            $this->io->warning(
-                sprintf(
-                    'Skipped projects %s, in config.yml excludes list',
-                    implode(', ', $this->skipProjects)
-                )
-            );
-        }
 
         $entries_to_log = array_filter($this->cachedHarvestEntries, function ($entry) {
             return strpos($entry->get('notes'), '#') !== false;
@@ -982,8 +1020,15 @@ class SyncCommand extends Command
         // Sync entries.
         $this->io->section('Processing entries');
         $this->io->progressStart(count($entries_to_log));
+
+        $spell_check_only = !empty($this->config['sync']['projects']['spell_check_only']) ? $this->config['sync']['projects']['spell_check_only'] : [];
         foreach ($entries_to_log as $harvest_entry) {
-            $this->syncEntry($harvest_entry);
+            $this->spellCheckEntry($harvest_entry);
+
+            if (!in_array($harvest_entry->get('project-id'), $spell_check_only)) {
+                $this->syncEntry($harvest_entry);
+            }
+
             $this->io->progressAdvance();
         }
         $this->io->progressFinish();
@@ -1005,13 +1050,15 @@ class SyncCommand extends Command
         }
 
         $users = [];
-        foreach ($this->userTimeEntryErrors as $user => $errors) {
-            if ($this->input->getOption('slack-notify')) {
-                $users[] = $this->slackUserMap[$user];
-                $this->logErrorsToSlack($user, $errors);
+        if (count($this->userTimeEntryErrors)) {
+            foreach ($this->userTimeEntryErrors as $user => $errors) {
+                if ($this->input->getOption('slack-notify')) {
+                    $users[] = $this->slackUserMap[$user];
+                    $this->logErrorsToSlack($user, $errors);
+                }
             }
+            $this->io->note(sprintf('Notified %s of time entry errors via Slack.', implode(', ', $users)));
         }
-        $this->io->note(sprintf('Notified %s of time entry errors via Slack.', implode(', ', $users)));
 
         if (count($this->syncSuccesses)) {
             $this->renderEntries('Successes', ['Message', 'Notes'], $this->syncSuccesses);

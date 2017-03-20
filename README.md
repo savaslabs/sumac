@@ -26,7 +26,7 @@ The Redmine `apikey` should be for the `savasadmin` user on your local instance 
 
 - From the Redmine project root, shell into the Redmine DB container via `docker-compose exec db /bin/bash`
 - Access the DB via `mysql -ppassword -u redmine redmine_docker` 
-- Update the `savasadmin` user's hashed password, salt, and status via `UPDATE users SET hashed_password='353e8061f2befecb6818ba0c034c632fb0bcae1b', status=1, salt='' WHERE login='savasadmin';`
+- Update the `savaslabs` user's hashed password, salt, and status via `UPDATE users SET hashed_password='353e8061f2befecb6818ba0c034c632fb0bcae1b', status=1, salt='' WHERE login='savaslabs';`
 - Quit and exit
 
 You should now be able to log into your local Redmine instance using username `savasadmin` and password `password`. Then, obtain the API key by clicking on `My Account`, then click `Show` under `API access key`.
@@ -58,6 +58,8 @@ In order to debug locally, you'll need to install some dependencies on your host
     - Fill in the arguments. For example, to run slack notification enter the arguments `sync -u 20170110:20170111 --slack-notify`
 - Set some breakpoints in your code
 - In PhpStorm, select "Debug Sumac" from under "Run"
+
+During debugging, it can take a while to fetch and cache all of the Redmine time entries and to fetch all Harvest time entries for the specified period. To speed up local development, you can specify certain projects to debug by listing their Harvest ids in your config.yml. When specified, Sumac will only fetch and cache time entries from Redmine for any projects associated with those Harvest ids, and Sumac will only fetch time entries from Harvest for those Harvest project ids. 
 
 ## Requirements
 
