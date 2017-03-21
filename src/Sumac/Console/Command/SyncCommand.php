@@ -65,7 +65,12 @@ class SyncCommand extends Command
     protected $syncedHarvestRecords = array();
 
     /** @var array */
-    protected $cachedHarvestEntries;
+    protected $cachedHarvestEntries = array();
+
+    /** @var array
+     * Maps Redmine Project IDs to Redmine "Project management" issue arrays.
+     */
+    protected $redmineProjectsToPmIssuesMap = array();
 
     /** @var array
      * Maps Harvest IDs to Slack usernames
