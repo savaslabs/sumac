@@ -683,6 +683,7 @@ class SyncCommand extends Command
                     'project' => $this->redmineProjectsToPmIssuesMap[$redmine_project_id]['project'],
                 ];
             }
+
             return ['issue' => $this->redmineProjectsToPmIssuesMap[$redmine_project_id]['issue']];
         }
         // Show issues in project.
@@ -720,7 +721,7 @@ class SyncCommand extends Command
                 $this->userTimeEntryErrors[$pm_harvest_user_id]['entry-logged-to-pm-issue'][] = [
                     'entry' => $entry,
                     'team-member' => $this->slackUserMap[$entry->get('user-id')],
-                    'project' => $redmine_project_data['project']['name']
+                    'project' => $redmine_project_data['project']['name'],
                 ];
             }
 
