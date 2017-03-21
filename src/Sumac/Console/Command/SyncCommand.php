@@ -340,9 +340,7 @@ class SyncCommand extends Command
         $all_time_entries = array();
         $fetched_projects = array();
         foreach ($this->debugProjects as $harvest_id => $redmine_projects) {
-            foreach ($redmine_projects as $project_info) {
-                $project_ids = array_keys($project_info);
-                $project_id = array_shift($project_ids);
+            foreach ($redmine_projects as $project_id => $project_name) {
                 if (!in_array($project_id, $fetched_projects)) {
                     $project_time_entries = $this->redmineClient->time_entry->all(array(
                       'limit' => 1000000,
