@@ -355,7 +355,10 @@ class SyncCommand extends Command
                         if (!isset($all_time_entries['time_entries'])) {
                             $all_time_entries['time_entries'] = $project_time_entries['time_entries'];
                         } else {
-                            $all_time_entries['time_entries'] = array_merge($all_time_entries['time_entries'], $project_time_entries['time_entries']);
+                            $all_time_entries['time_entries'] = array_merge(
+                                $all_time_entries['time_entries'],
+                                $project_time_entries['time_entries']
+                            );
                         }
                     }
                     array_push($fetched_projects, $project_id);
@@ -1140,7 +1143,8 @@ class SyncCommand extends Command
         $this->io->section('Processing entries');
         $this->io->progressStart(count($this->cachedHarvestEntries));
 
-        $spell_check_only = !empty($this->config['sync']['projects']['spell_check_only']) ? $this->config['sync']['projects']['spell_check_only'] : [];
+        $spell_check_only = !empty($this->config['sync']['projects']['spell_check_only']) ?
+            $this->config['sync']['projects']['spell_check_only'] : [];
         foreach ($this->cachedHarvestEntries as $harvest_entry) {
             $this->spellCheckEntry($harvest_entry);
 
