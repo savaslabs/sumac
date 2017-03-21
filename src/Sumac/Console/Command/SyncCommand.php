@@ -672,7 +672,7 @@ class SyncCommand extends Command
         $redmine_project_id = current(array_keys($redmine_project));
         if (isset($this->redmineProjectsToPmIssuesMap[$redmine_project_id])) {
             // If we already have a PM issue in our map, then return the issue early.
-            return $this->redmineProjectsToPmIssuesMap[$redmine_project_id];
+            return ['issue' => $this->redmineProjectsToPmIssuesMap[$redmine_project_id]];
         }
         // Show issues in project.
         $this->setRedmineClient();
@@ -711,6 +711,7 @@ class SyncCommand extends Command
                 ];
             }
 
+            $this->redmineProjectsToPmIssuesMap[$redmine_project_id] = $pm_issue;
             return ['issue' => $pm_issue];
         }
         // Log an error to Sumac and to Slack user if PM Issue does not exist.
