@@ -401,6 +401,7 @@ class SyncCommand extends Command
 
         $error_category_titles = [
             'unable-to-sync' => 'For reasons unknown this time entry would not sync.',
+            'harvest-id-not-synced' => 'API call to Redmine failed.',
             'no-issue-number' => 'Time entries with no issue number',
             'missing-issue' => 'Time entries where no matching redmine issue was found',
             'issue-not-in-project' => 'Redmine issue\'s project doesn\'t match up with the Harvest project.',
@@ -414,7 +415,15 @@ class SyncCommand extends Command
                     substr($error['entry']->get('spent-at'), 0, 10),
                     $error['entry']->get('notes'),
                     $this->getClickableTimeEntryUrl($error['entry'])
-                ) ;
+                );
+            },
+            'harvest-id-not-synced' => function ($error) {
+                return sprintf(
+                    "%s -- %s\n%s",
+                    substr($error['entry']->get('spent-at'), 0, 10),
+                    $error['entry']->get('notes'),
+                    $this->getClickableTimeEntryUrl($error['entry'])
+                );
             },
             'no-issue-number' => function ($error) {
                 return sprintf(
