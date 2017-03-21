@@ -638,6 +638,44 @@ class SyncCommand extends Command
     }
 
     /**
+     * Get the "Project management" issue in a Redmine project for a Harvest entry.
+     * @param \Harvest\Model\DayEntry $entry
+     *
+     * @return array|bool
+     *  Array of Redmine issue information or false if no match found.
+     */
+    protected function getRedmineProjectPmIssue(DayEntry $entry)
+    {
+        // Find project in map.
+        $redmine_project = $this->projectMap[$entry->get('project-id')];
+        $redmine_project_id = current(array_keys($redmine_project));
+        if (isset($this->redmineProjectsToPmIssuesMap[$redmine_project_id])) {
+            return $this->redmineProjectsToPmIssuesMap[$redmine_project_id];
+        }
+        // Show issues in project.
+        $this->setRedmineClient();
+        $issue_api = new Redmine\Api\Issue($this->redmineClient);
+        $project_issues = $issue_api->all(
+            [
+                'project_id' => $redmine_project_id,
+                'limit' => 1000
+            ]
+        );
+
+        // Look for an existing "Project management" issue.
+        $pm_issue = current(array_filter($project_issues['issues'], function ($issue) {
+            return ($issue['subject'] == 'Project management');
+        }));
+        if (count($pm_issue)) {
+            // TODO: Ping PM that a time entry was filed here.
+            // Get project manager user reference, and find their Slack ID.
+            return ['issue' => $pm_issue];
+        }
+        // TODO: Log an error to Sumac
+        // TODO: Let Slack user know that the PM issue needs to be created
+    }
+
+    /**
      * Get redmine issue matching this harvest entry and in the right project.
      *
      * @param \Harvest\Model\DayEntry $entry
@@ -655,16 +693,8 @@ class SyncCommand extends Command
         $redmine_issue_number = str_replace('#', '', $redmine_issue_number);
 
         if (!$redmine_issue_number) {
-            // The resulting value is not a number.
-            $this->userTimeEntryErrors[$entry->get('user-id')]['no-issue-number'][] = [
-                'entry' => $entry,
-            ];
-            $this->syncErrors[$entry->get('id')] = $this->formatError(
-                'NO_ISSUE_NUMBER',
-                $entry
-            );
-
-            return false;
+            // If no issue number is in the message, tuck it away into the PM issue.
+            return $this->getRedmineProjectPmIssue($entry);
         }
 
         $this->setRedmineClient();
@@ -688,6 +718,7 @@ class SyncCommand extends Command
         // Validate that issue ID exists in possible projects.
         // Check if project ID exists in the map. If not, return false.
         if (!isset($this->projectMap[$entry->get('project-id')])) {
+            // TODO: Slack error
             $this->syncErrors[$entry->get('id')] = $this->formatError(
                 'REDMINE_PROJECT_DOESNT_EXIST',
                 $entry
@@ -941,20 +972,16 @@ class SyncCommand extends Command
      */
     protected function getHarvestDataForProjects()
     {
-        $project_data = [];
         $this->io->section(sprintf('Getting time entries data for %d Redmine projects', count($this->projectMap)));
         $this->io->progressStart(count($this->projectMap));
         foreach ($this->projectMap as $harvest_id => $project) {
-            $project_names = [];
-            foreach ($project as $key => $projects) {
-                $project_names[] = current($projects);
-            }
+            $redmine_project_name = current(array_values($project));
             $project_data_result = $this->harvestClient->getProject($harvest_id);
             if ($project_data_result->get('code') !== 200) {
                 $this->output->writeln(sprintf(
                     '- <error>Could not get project data for Harvest ID %d associated with Redmine project %s!',
                     $harvest_id,
-                    implode(' - ', $project_names)
+                    $redmine_project_name
                 ));
                 continue;
             }
@@ -1029,29 +1056,17 @@ class SyncCommand extends Command
         /* @var \Harvest\Model\Result $projects */
         $this->getHarvestDataForProjects();
 
-        $entries_to_log = array_filter($this->cachedHarvestEntries, function ($entry) {
-            return strpos($entry->get('notes'), '#') !== false;
-        });
-
-        if (!count($entries_to_log)) {
+        if (!count($this->cachedHarvestEntries)) {
             $this->io->comment('No entries found for logging!');
             return true;
         }
 
-        $this->io->note(
-            sprintf(
-                'Found %d entries with possible Redmine IDs out of %d total',
-                count($entries_to_log),
-                count($this->cachedHarvestEntries)
-            )
-        );
-
         // Sync entries.
         $this->io->section('Processing entries');
-        $this->io->progressStart(count($entries_to_log));
+        $this->io->progressStart(count($this->cachedHarvestEntries));
 
         $spell_check_only = !empty($this->config['sync']['projects']['spell_check_only']) ? $this->config['sync']['projects']['spell_check_only'] : [];
-        foreach ($entries_to_log as $harvest_entry) {
+        foreach ($this->cachedHarvestEntries as $harvest_entry) {
             $this->spellCheckEntry($harvest_entry);
 
             if (!in_array($harvest_entry->get('project-id'), $spell_check_only)) {
@@ -1063,13 +1078,15 @@ class SyncCommand extends Command
         $this->io->progressFinish();
 
         // If not a dry run, make another call to Redmine to ensure that the entry was really created. This is
-        // necessary since Redmine API doesn't always return errors when making POST OR PUT requests.
-        // time entries.
+        // necessary since Redmine API doesn't always return errors when making POST or PUT requests.
         $this->redmineTimeEntries = [];
         $this->cacheRedmineTimeEntries();
         foreach ($this->syncedHarvestRecords as $record) {
             if (!array_key_exists($record, $this->redmineTimeEntries)) {
                 if (!array_key_exists($record, $this->syncErrors)) {
+                    $this->userTimeEntryErrors[$record->get('user-id')]['harvest-id-not-synced'][] = [
+                        'entry' => $record,
+                    ];
                     $this->syncErrors[$record] = $this->formatError(
                         'HARVEST_ID_NOT_SYNCED',
                         $this->cachedHarvestEntries[$record]
