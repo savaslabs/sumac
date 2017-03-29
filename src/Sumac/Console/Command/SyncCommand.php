@@ -574,13 +574,17 @@ class SyncCommand extends Command
                         // Check for duplicate Harvest project IDs.
                         if (isset($this->projectMap[$project_id])) {
                             throw new Exception(
-                                sprintf('Project %d is in project map already with these values %s, tried to add these new values %s',
-                                $project_id,
-                                json_encode($this->projectMap[$project_id]),
-                                json_encode([
-                                    'id' => $project['id'],
-                                    'name' => $project['name'],
-                                ]))
+                                sprintf(
+                                    'Project %d already in project map with values %s, tried to add new values %s',
+                                    $project_id,
+                                    json_encode($this->projectMap[$project_id]),
+                                    json_encode(
+                                        [
+                                            'id' => $project['id'],
+                                            'name' => $project['name'],
+                                        ]
+                                    )
+                                )
                             );
                         }
 
@@ -588,15 +592,19 @@ class SyncCommand extends Command
                         foreach ($this->projectMap as $harvest_project_id => $redmine_values) {
                             $redmine_project_id = current(array_keys($redmine_values));
                             if ($project['id'] == $redmine_project_id) {
-                                throw new Exception(sprintf('Project ID %d is in project map already with these values %s, tried to add these new values %s',
-                                    $project['id'],
-                                    json_encode($redmine_values),
-                                    json_encode(
-                                        ['id' => $project['id'],
-                                         'name' => $project['name'],
-                                        ]
+                                throw new Exception(
+                                    sprintf(
+                                        'Proj ID %d already in map with these values %s, tried to add new values %s',
+                                        $project['id'],
+                                        json_encode($redmine_values),
+                                        json_encode(
+                                            [
+                                                'id' => $project['id'],
+                                                'name' => $project['name'],
+                                            ]
+                                        )
                                     )
-                                ));
+                                );
                             }
                         }
                         // Add to project map.
