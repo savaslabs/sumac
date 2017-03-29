@@ -963,18 +963,15 @@ class SyncCommand extends Command
                     $spent_hours = isset($redmine_issue['issue']['spent_hours']) ?
                         $redmine_issue['issue']['spent_hours'] : 0;
                     $remaining_time = $estimated_hours - $spent_hours;
-                    // Only update if it's changed.
-                    if ($redmine_issue['issue']['custom_fields'][$remaining_time_key]['value'] !== $remaining_time) {
-                        $redmine_issue['issue']['custom_fields'][$remaining_time_key]['value'] = $remaining_time;
-
-                        // TODO: If estimated - spent = less than zero, ping PM via Slack.
-                        $issue_api->update(
-                            $redmine_time_entry_params['issue_id'],
-                            [
-                                'custom_fields' => $redmine_issue['issue']['custom_fields'],
-                            ]
-                        );
-                    }
+                    // TODO: Only update if it's changed.
+                    $redmine_issue['issue']['custom_fields'][$remaining_time_key]['value'] = $remaining_time;
+                    // TODO: If estimated - spent = less than zero, ping PM via Slack.
+                    $issue_api->update(
+                        $redmine_time_entry_params['issue_id'],
+                        [
+                            'custom_fields' => $redmine_issue['issue']['custom_fields'],
+                        ]
+                    );
                 }
             }
         }
