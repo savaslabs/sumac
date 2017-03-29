@@ -570,6 +570,36 @@ class SyncCommand extends Command
                         if ($project_id == '-') {
                             continue;
                         }
+
+                        // Check for duplicate Harvest project IDs.
+                        if (isset($this->projectMap[$project_id])) {
+                            throw new Exception(
+                                sprintf('Project %d is in project map already with these values %s, tried to add these new values %s',
+                                $project_id,
+                                json_encode($this->projectMap[$project_id]),
+                                json_encode([
+                                    'id' => $project['id'],
+                                    'name' => $project['name'],
+                                ]))
+                            );
+                        }
+
+                        // Search for duplicate Redmine project IDs.
+                        foreach ($this->projectMap as $harvest_project_id => $redmine_values) {
+                            $redmine_project_id = current(array_keys($redmine_values));
+                            if ($project['id'] == $redmine_project_id) {
+                                throw new Exception(sprintf('Project ID %d is in project map already with these values %s, tried to add these new values %s',
+                                    $project['id'],
+                                    json_encode($redmine_values),
+                                    json_encode(
+                                        ['id' => $project['id'],
+                                         'name' => $project['name'],
+                                        ]
+                                    )
+                                ));
+                            }
+                        }
+                        // Add to project map.
                         $this->projectMap[$project_id] = [
                             $project['id'] => $project['name'],
                         ];
@@ -1125,6 +1155,11 @@ class SyncCommand extends Command
 
         // Cache redmine time entries.
         $this->cacheRedmineTimeEntries();
+        $this->io->comment(
+            sprintf(
+                'Starting process with %d time entries in Redmine.', count($this->redmineTimeEntries)
+            )
+        );
 
         // Get map of Redmine users to Harvest IDs.
         $this->populateUserMap();
@@ -1140,7 +1175,7 @@ class SyncCommand extends Command
         }
 
         // Sync entries.
-        $this->io->section('Processing entries');
+        $this->io->section(sprintf('Processing %d Harvest time entries', count($this->cachedHarvestEntries)));
         $this->io->progressStart(count($this->cachedHarvestEntries));
 
         $spell_check_only = !empty($this->config['sync']['projects']['spell_check_only']) ?
@@ -1173,6 +1208,7 @@ class SyncCommand extends Command
                 }
             }
         }
+        $this->io->comment(sprintf('Finished process with %d time entries in Redmine.'));
 
         $users = [];
         if (count($this->userTimeEntryErrors)) {
