@@ -920,10 +920,13 @@ class SyncCommand extends Command
         array $redmine_time_entry_params,
         $existing_redmine_time_entry
     ) {
+        $result = false;
         $time_entry_api = new Redmine\Api\TimeEntry($this->redmineClient);
         if ($existing_redmine_time_entry === false) {
-            /** @var \SimpleXMLElement $result */
             $result = $time_entry_api->create($redmine_time_entry_params);
+            if (is_a($result, 'SimpleXMLElement')) {
+                $result = true;
+            }
         } else {
             // Update existing entry.
             $time_entry_api->update(
@@ -941,6 +944,10 @@ class SyncCommand extends Command
         if ($result) {
             // Re-initialize the Redmine client.
             $this->setRedmineClient();
+            $harvest_entry = $this->cachedHarvestEntries[$harvest_id];
+            $this->redmineClient->setImpersonateUser(
+                $this->userMap[$harvest_entry->get('user-id')]['name']
+            );
             $issue_api = new Redmine\Api\Issue($this->redmineClient);
             $redmine_issue = $issue_api->show($redmine_time_entry_params['issue_id']);
             // Get index of the Remaining Time field.
@@ -955,20 +962,24 @@ class SyncCommand extends Command
                         $redmine_issue['issue']['estimated_hours'] : 0;
                     $spent_hours = isset($redmine_issue['issue']['spent_hours']) ?
                         $redmine_issue['issue']['spent_hours'] : 0;
-                    $redmine_issue['issue']['custom_fields'][$remaining_time_key]['value'] =
-                        $estimated_hours - $spent_hours;
-                    // TODO: If estimated - spent = less than zero, ping PM via Slack.
-                    $issue_api->update(
-                        $redmine_time_entry_params['issue_id'],
-                        [
-                            'custom_fields' => $redmine_issue['issue']['custom_fields'],
-                        ]
-                    );
+                    $remaining_time = $estimated_hours - $spent_hours;
+                    // Only update if it's changed.
+                    if ($redmine_issue['issue']['custom_fields'][$remaining_time_key]['value'] !== $remaining_time) {
+                        $redmine_issue['issue']['custom_fields'][$remaining_time_key]['value'] = $remaining_time;
+
+                        // TODO: If estimated - spent = less than zero, ping PM via Slack.
+                        $issue_api->update(
+                            $redmine_time_entry_params['issue_id'],
+                            [
+                                'custom_fields' => $redmine_issue['issue']['custom_fields'],
+                            ]
+                        );
+                    }
                 }
             }
         }
 
-        return ($result) ? $result : false;
+        return $result;
     }
 
     /**
@@ -1062,19 +1073,31 @@ class SyncCommand extends Command
             }
         }
         // Log a success if there was one (or if dry run).
-        if ($save_entry_result || $this->input->getOption('dry-run')) {
+        if ($save_entry_result === true || $this->input->getOption('dry-run')) {
             $this->syncSuccesses[] = $this->formatSuccess(
                 ($existing_redmine_time_entry) ? 'Updated' : 'Created',
                 $redmine_issue['issue']['id'],
                 $harvest_entry
             );
         }
-        // If no save entry result, and not a dry run, log an error.
-        if (!$save_entry_result && !$this->input->getOption('dry-run')) {
+        if ($this->input->getOption('dry-run')) {
+            return $save_entry_result;
+        }
+
+        // If no save entry result, log an error.
+        if ($save_entry_result === false) {
             $this->userTimeEntryErrors[$harvest_entry->get('user-id')]['unable-to-sync'][] = [
                 'entry' => $harvest_entry,
             ];
-            $this->syncErrors[$harvest_entry->get('id')] = $this->formatError('UNABLE_TO_SYNC', $harvest_entry);
+            $this->syncErrors[$harvest_entry->get('id')] = $this->formatError(
+                'UNABLE_TO_SYNC',
+                $harvest_entry,
+                sprintf(
+                    'Is user %s a member of project %s?',
+                    $this->userMap[$harvest_entry->get('user-id')]['name'],
+                    $redmine_issue['issue']['project']['name']
+                )
+            );
         }
 
         return $save_entry_result;
@@ -1165,7 +1188,8 @@ class SyncCommand extends Command
         $this->cacheRedmineTimeEntries();
         $this->io->comment(
             sprintf(
-                'Starting process with %d time entries in Redmine.', count($this->redmineTimeEntries)
+                'Starting process with %d time entries in Redmine.',
+                count($this->redmineTimeEntries)
             )
         );
 
