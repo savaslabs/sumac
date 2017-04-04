@@ -1231,6 +1231,7 @@ class SyncCommand extends Command
         // necessary since Redmine API doesn't always return errors when making POST or PUT requests.
         $this->redmineTimeEntries = [];
         $this->cacheRedmineTimeEntries();
+        $count_synced_harvest_records = count($this->syncedHarvestRecords);
         foreach ($this->syncedHarvestRecords as $record) {
             if (!array_key_exists($record, $this->redmineTimeEntries)) {
                 if (!array_key_exists($record, $this->syncErrors)) {
@@ -1241,10 +1242,11 @@ class SyncCommand extends Command
                         'HARVEST_ID_NOT_SYNCED',
                         $this->cachedHarvestEntries[$record]
                     );
+                    $count_synced_harvest_records--;
                 }
             }
         }
-        $this->io->comment(sprintf('Finished process with %d time entries in Redmine.'));
+        $this->io->comment(sprintf('Finished process with %d time entries in Redmine.', $count_synced_harvest_records));
 
         $users = [];
         if (count($this->userTimeEntryErrors)) {
