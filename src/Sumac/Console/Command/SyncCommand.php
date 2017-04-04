@@ -715,7 +715,7 @@ class SyncCommand extends Command
         $redmine_project_id = current(array_keys($redmine_project));
         if (isset($this->redmineProjectsToPmIssuesMap[$redmine_project_id])) {
             // If we already have a PM issue in our map, then return the issue early.
-            // Add Slack notice.
+            // Notify the PM via Slack if the project's PM field is set.
             if (!empty($this->redmineProjectsToPmIssuesMap[$redmine_project_id]['pm-harvest-id'])) {
                 $pm_harvest_user_id = $this->redmineProjectsToPmIssuesMap[$redmine_project_id]['pm-harvest-id'];
                 $this->userTimeEntryErrors[$pm_harvest_user_id]['entry-logged-to-pm-issue'][] = [
@@ -758,12 +758,19 @@ class SyncCommand extends Command
                     $pm_redmine_id,
                     array_column($this->userMap, 'id')
                 );
-                $pm_harvest_user_id = current(array_keys(array_slice($this->userMap, $pm_harvest_user_key, 1, true)));
-                $this->userTimeEntryErrors[$pm_harvest_user_id]['entry-logged-to-pm-issue'][] = [
-                    'entry' => $entry,
-                    'team-member' => $this->slackUserMap[$entry->get('user-id')],
-                    'project' => $redmine_project_data['project']['name'],
-                ];
+
+                // If the PM is not set, then set the user ID to false,
+                // otherwise notify the PM via Slack.
+                if ($pm_harvest_user_key == false) {
+                    $pm_harvest_user_id = false;
+                } else {
+                    $pm_harvest_user_id = current(array_keys(array_slice($this->userMap, $pm_harvest_user_key, 1, true)));
+                    $this->userTimeEntryErrors[$pm_harvest_user_id]['entry-logged-to-pm-issue'][] = [
+                      'entry' => $entry,
+                      'team-member' => $this->slackUserMap[$entry->get('user-id')],
+                      'project' => $redmine_project_data['project']['name'],
+                    ];
+                }
             }
 
             $this->redmineProjectsToPmIssuesMap[$redmine_project_id] =
