@@ -20,7 +20,7 @@ Spin up Redmine locally.
 
 Copy `config.example.yml` to `config.yml` and fill in any placeholder values. Particularly, you'll need the Slack webhook URL if you want to test slack integration, you'll need to fill in some Harvest credentials which have the proper permissions, and you'll need the Remine API key for the instance you're running locally.
 
-The Slack webhook url and Harvest credentials can be obtained either from a team member with those credentials, or from the Savas Labs production server's `/home/jenkins/sumac/config.yml` file.
+The Slack webhook url and Harvest credentials can be obtained either from a team member with those credentials, or from the production `config.yml` located on our CI application at `/configfiles/show?id=redmine-sumac`.
 
 The Redmine `apikey` should be for the `savasadmin` user on your local instance of Redmine. To obtain the API key, first reset the `savasadmin` user's Redmine password locally:
 
