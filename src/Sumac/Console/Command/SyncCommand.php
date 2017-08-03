@@ -1235,7 +1235,10 @@ class SyncCommand extends Command
         foreach ($this->syncedHarvestRecords as $record) {
             if (!array_key_exists($record, $this->redmineTimeEntries)) {
                 if (!array_key_exists($record, $this->syncErrors)) {
-                    $this->userTimeEntryErrors[$record->get('user-id')]['harvest-id-not-synced'][] = [
+                    if (is_string($record)) {
+                        $entry_object = $this->cachedHarvestEntries[$record];
+                    }
+                    $this->userTimeEntryErrors[$entry_object->get('user-id')]['harvest-id-not-synced'][] = [
                         'entry' => $record,
                     ];
                     $this->syncErrors[$record] = $this->formatError(
