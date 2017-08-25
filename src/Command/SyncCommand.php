@@ -11,6 +11,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Yaml\Yaml;
+use SavasLabs\Sumac\Clients\Harvest;
 use Redmine;
 use Harvest\HarvestAPI;
 use Harvest\Model\Range;
@@ -238,10 +239,13 @@ class SyncCommand extends Command
      */
     private function setHarvestClient()
     {
-        $this->harvestClient = new HarvestAPI();
-        $this->harvestClient->setUser($this->config['auth']['harvest']['mail']);
-        $this->harvestClient->setPassword($this->config['auth']['harvest']['pass']);
-        $this->harvestClient->setAccount($this->config['auth']['harvest']['account']);
+        $config = [
+            'mail' => $this->config['auth']['harvest']['mail'],
+            'pass' => $this->config['auth']['harvest']['pass'],
+            'account' => $this->config['auth']['harvest']['account'],
+        ];
+        $harvest = new Harvest($config);
+        $this->harvestClient = $harvest->getClient();
     }
 
     /**
@@ -249,6 +253,11 @@ class SyncCommand extends Command
      */
     private function setRedmineClient()
     {
+        $config = [
+            'url' => $this->config['auth']['redmine']['url'],
+            'apikey' => $this->config['auth']['redmine']['apikey'],
+        ];
+
         $this->redmineClient = new Redmine\Client(
             $this->config['auth']['redmine']['url'],
             $this->config['auth']['redmine']['apikey']
