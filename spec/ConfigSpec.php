@@ -7,18 +7,28 @@ use PhpSpec\ObjectBehavior;
 
 class ConfigSpec extends ObjectBehavior
 {
-    public function it_is_initializable()
+    function it_is_initializable()
     {
         $this->shouldHaveType(Config::class);
     }
 
-    public function it_fails_if_config_file_not_found()
+    function it_fails_if_config_file_not_found()
     {
-        $this->shouldThrow('\Exception')->duringLoadConfig('file.yml');
+        $this->shouldThrow('\Exception')->duringLoadFile('file.yml');
     }
 
-    public function it_returns_an_array_if_file_is_loaded()
+    function it_returns_an_array_if_file_is_loaded()
     {
         $this->loadConfig('config.example.yml')->shouldBeArray();
+    }
+
+    function it_loads_config_file_into_memory()
+    {
+        $this->loadFile('config.example.yml')->shouldBeString();
+    }
+
+   function it_fails_if_config_file_is_not_yaml()
+    {
+        $this->shouldThrow('\Exception')->during('parseYaml', ['"aws ... \"Branch\": $BITBUCKET_BRANCH, \"Date\": $(date +"%m-%d-%y"), \"Time\": $(date +"%T")}\"']);
     }
 }
