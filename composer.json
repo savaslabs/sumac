@@ -3,7 +3,7 @@
         "gridonic/hapi": "^0.1.0",
         "kbsali/redmine-api": "~1.0",
         "symfony/yaml": "^3.0",
-        "symfony/console": "^3.2",
+        "symfony/console": "^3.3",
         "nesbot/carbon": "^1.21",
         "phpro/grumphp": "^0.6.0",
         "friendsofphp/php-cs-fixer": "^1.12",
@@ -11,12 +11,13 @@
     },
     "autoload": {
         "psr-4": {
-            "Sumac\\": "src/Sumac/"
+            "SavasLabs\\Sumac\\": "src/"
         }
     },
-    "autoload-dev": {
-        "psr-4": {
-            "Tests\\": "tests/"
-        }
+  "bin": [
+    "bin/sumac"
+  ],
+    "require-dev": {
+        "phpspec/phpspec": "^4.0"
     }
 }

@@ -1,0 +1,5 @@
+suites:
+  default:
+    namespace: SavasLabs\Sumac
+    psr4_prefix: SavasLabs\Sumac
+formatter.name: pretty

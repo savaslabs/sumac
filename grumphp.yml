@@ -5,3 +5,6 @@ parameters:
       phpcsfixer: ~
       phpcs:
         standard: "PSR2"
+        whitelist_patterns:
+          - /^src\/(.*)/
+      phpspec: ~

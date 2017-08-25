@@ -1,7 +1,9 @@
 <?php
 
-namespace Sumac\Console\Command;
+namespace SavasLabs\Sumac\Command;
 
+use Redmine\Client;
+use SavasLabs\Sumac\Config;
 use Symfony\Component\Config\Definition\Exception\Exception;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -10,8 +12,8 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Yaml\Yaml;
-use Redmine;
-use Harvest\HarvestAPI;
+use SavasLabs\Sumac\Clients\Harvest;
+use SavasLabs\Sumac\Clients\Redmine;
 use Harvest\Model\Range;
 use Harvest\Model\DayEntry;
 use Carbon\Carbon;
@@ -124,12 +126,6 @@ class SyncCommand extends Command
                         'Log all Slack notifications to stdout.'
                     ),
                     new InputOption(
-                        'config',
-                        'c',
-                        InputOption::VALUE_OPTIONAL,
-                        'Path to configuration file. Leave empty if config.yml is in repository root.'
-                    ),
-                    new InputOption(
                         'slack-notify',
                         null,
                         null,
@@ -234,29 +230,8 @@ class SyncCommand extends Command
      */
     private function setConfig()
     {
-        if ($config_path = $this->input->getOption('config')) {
-            if (!file_exists($config_path)) {
-                throw new \Exception(sprintf('Could not find the config.yml file at %s', $config_path));
-            }
-        } else {
-            $config_path = 'config.yml';
-        }
-
-        // Load the configuration.
-        $yaml = new Yaml();
-        if (!file_exists($config_path)) {
-            throw new \Exception('Could not find a config.yml file.');
-        }
-        try {
-            $this->config = $yaml->parse(file_get_contents($config_path), true);
-        } catch (\Exception $e) {
-            $this->output->writeln(
-                sprintf(
-                    '<error>%s</error>',
-                    $e->getMessage()
-                )
-            );
-        }
+        $config = new Config();
+        $this->config = $config->loadConfig('config.yml');
     }
 
     /**
@@ -264,10 +239,13 @@ class SyncCommand extends Command
      */
     private function setHarvestClient()
     {
-        $this->harvestClient = new HarvestAPI();
-        $this->harvestClient->setUser($this->config['auth']['harvest']['mail']);
-        $this->harvestClient->setPassword($this->config['auth']['harvest']['pass']);
-        $this->harvestClient->setAccount($this->config['auth']['harvest']['account']);
+        $config = [
+            'mail' => $this->config['auth']['harvest']['mail'],
+            'pass' => $this->config['auth']['harvest']['pass'],
+            'account' => $this->config['auth']['harvest']['account'],
+        ];
+        $harvest = new Harvest($config);
+        $this->harvestClient = $harvest->getClient();
     }
 
     /**
@@ -275,7 +253,7 @@ class SyncCommand extends Command
      */
     private function setRedmineClient()
     {
-        $this->redmineClient = new Redmine\Client(
+        $this->redmineClient = new Client(
             $this->config['auth']['redmine']['url'],
             $this->config['auth']['redmine']['apikey']
         );
@@ -764,7 +742,12 @@ class SyncCommand extends Command
                 if ($pm_harvest_user_key == false) {
                     $pm_harvest_user_id = false;
                 } else {
-                    $pm_harvest_user_id = current(array_keys(array_slice($this->userMap, $pm_harvest_user_key, 1, true)));
+                    $pm_harvest_user_id = current(
+                        array_keys(
+                            array_slice(
+                                $this->userMap, $pm_harvest_user_key, 1, true)
+                        )
+                    );
                     $this->userTimeEntryErrors[$pm_harvest_user_id]['entry-logged-to-pm-issue'][] = [
                       'entry' => $entry,
                       'team-member' => $this->slackUserMap[$entry->get('user-id')],
@@ -1245,7 +1228,7 @@ class SyncCommand extends Command
                         'HARVEST_ID_NOT_SYNCED',
                         $this->cachedHarvestEntries[$record]
                     );
-                    $count_synced_harvest_records--;
+                    --$count_synced_harvest_records;
                 }
             }
         }
