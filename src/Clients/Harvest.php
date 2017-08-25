@@ -6,6 +6,8 @@ use Harvest\HarvestAPI;
 
 class Harvest
 {
+    private $config;
+
     public function __construct(array $config) {
         $this->config = $config;
     }

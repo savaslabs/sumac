@@ -2,6 +2,7 @@
 
 namespace SavasLabs\Sumac\Command;
 
+use Redmine\Client;
 use SavasLabs\Sumac\Config;
 use Symfony\Component\Config\Definition\Exception\Exception;
 use Symfony\Component\Console\Input\InputInterface;
@@ -12,8 +13,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Yaml\Yaml;
 use SavasLabs\Sumac\Clients\Harvest;
-use Redmine;
-use Harvest\HarvestAPI;
+use SavasLabs\Sumac\Clients\Redmine;
 use Harvest\Model\Range;
 use Harvest\Model\DayEntry;
 use Carbon\Carbon;
@@ -253,12 +253,7 @@ class SyncCommand extends Command
      */
     private function setRedmineClient()
     {
-        $config = [
-            'url' => $this->config['auth']['redmine']['url'],
-            'apikey' => $this->config['auth']['redmine']['apikey'],
-        ];
-
-        $this->redmineClient = new Redmine\Client(
+        $this->redmineClient = new Client(
             $this->config['auth']['redmine']['url'],
             $this->config['auth']['redmine']['apikey']
         );
