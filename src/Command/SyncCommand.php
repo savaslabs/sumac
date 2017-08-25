@@ -1,6 +1,6 @@
 <?php
 
-namespace Sumac\Console\Command;
+namespace SavasLabs\Sumac\Command;
 
 use Symfony\Component\Config\Definition\Exception\Exception;
 use Symfony\Component\Console\Input\InputInterface;
@@ -1245,7 +1245,7 @@ class SyncCommand extends Command
                         'HARVEST_ID_NOT_SYNCED',
                         $this->cachedHarvestEntries[$record]
                     );
-                    $count_synced_harvest_records--;
+                    --$count_synced_harvest_records;
                 }
             }
         }

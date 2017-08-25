@@ -5,3 +5,4 @@ parameters:
       phpcsfixer: ~
       phpcs:
         standard: "PSR2"
+      phpspec: ~
