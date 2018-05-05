@@ -1219,8 +1219,11 @@ class SyncCommand extends Command
         $dont_spell_check = $this->config['sync']['clients']['dont_spell_check'] ?? [];
 
         foreach ($this->cachedHarvestEntries as $harvest_entry) {
+            $project = $this->harvestClient->getProject($harvest_entry->get('project-id'));
+            $client_id = $project->get('data')->get('client-id');
 
-            if (!in_array($harvest_entry->get('client-id'), $dont_spell_check)) {
+
+            if (!in_array($client_id, $dont_spell_check)) {
                 $this->spellCheckEntry($harvest_entry);
             }
 
