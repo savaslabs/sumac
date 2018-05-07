@@ -11,14 +11,18 @@ auth:
     # Set debug-user to a slack username to route all slack notifications to that user.
     # debug-user: '@tim'
 sync:
- projects:
-   # Harvest projects to spellcheck but not sync
-   spell_check_only:
-     #- '5990760'
-   # Speed up local debugging by only fetching Harvest time entries and
-   # Redmine issues associated with the following Harvest project id's.
-   debug_projects:
-     #- '5990760'
+  clients:
+    dont_spell_check:
+      # Ignore spell checking for any project belonging to this client.
+      #- '1235676890'
+  projects:
+    # Harvest projects to spellcheck but not sync
+    spell_check_only:
+      #- '5990760'
+    # Speed up local debugging by only fetching Harvest time entries and
+    # Redmine issues associated with the following Harvest project id's.
+    debug_projects:
+      #- '5990760'
 spellcheck:
   # Populate the project and page name for the spellcheck dictionary wiki in Redmine.
   # Those values can be obtained from the wiki's path as follows: pm.savaslabs.com/projects/[project_name]/wiki/[wiki_page_name]

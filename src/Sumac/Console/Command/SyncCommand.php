@@ -764,7 +764,11 @@ class SyncCommand extends Command
                 if ($pm_harvest_user_key == false) {
                     $pm_harvest_user_id = false;
                 } else {
-                    $pm_harvest_user_id = current(array_keys(array_slice($this->userMap, $pm_harvest_user_key, 1, true)));
+                    $pm_harvest_user_id = current(
+                        array_keys(
+                            array_slice($this->userMap, $pm_harvest_user_key, 1, true)
+                        )
+                    );
                     $this->userTimeEntryErrors[$pm_harvest_user_id]['entry-logged-to-pm-issue'][] = [
                       'entry' => $entry,
                       'team-member' => $this->slackUserMap[$entry->get('user-id')],
@@ -1216,12 +1220,26 @@ class SyncCommand extends Command
 
         $spell_check_only = !empty($this->config['sync']['projects']['spell_check_only']) ?
             $this->config['sync']['projects']['spell_check_only'] : [];
+        $project_id_to_client_id_map = [];
+        $dont_spell_check = $this->config['sync']['clients']['dont_spell_check'] ??[];
         foreach ($this->cachedHarvestEntries as $harvest_entry) {
-            $this->spellCheckEntry($harvest_entry);
-
-            if (!in_array($harvest_entry->get('project-id'), $spell_check_only)) {
-                $this->syncEntry($harvest_entry);
+            // Populate a map of Harvest project IDs to Client IDs so we don't have to make a GET request on every
+            // time entry.
+            if (!isset($project_id_to_client_id_map[$harvest_entry->get('project-id')])) {
+                $project_id_to_client_id_map[$harvest_entry->get('project-id')] =
+                    $this->harvestClient->getProject($harvest_entry->get('project-id'))->data->get('client-id');
             }
+            // If the current time entry's client ID is *not* in the "don't spell check" list, then spell check it.
+            if (!in_array($project_id_to_client_id_map[$harvest_entry->get('project-id')], $dont_spell_check)) {
+                $this->spellCheckEntry($harvest_entry);
+            }
+            // If we are only spell checking a project, don't sync the entry.
+            if (in_array($harvest_entry->get('project-id'), $spell_check_only)) {
+                continue;
+            }
+
+            // Sync the entry from Harvest to Redmine.
+            $this->syncEntry($harvest_entry);
 
             $this->io->progressAdvance();
         }
