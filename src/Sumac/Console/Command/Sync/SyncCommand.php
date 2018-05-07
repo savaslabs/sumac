@@ -1,7 +1,8 @@
 <?php
 
-namespace Sumac\Console\Command;
+namespace Sumac\Console\Command\Sync;
 
+use Sumac\Config\Config;
 use Symfony\Component\Config\Definition\Exception\Exception;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -9,7 +10,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Yaml\Yaml;
 use Redmine;
 use Harvest\HarvestAPI;
 use Harvest\Model\Range;
@@ -26,7 +26,7 @@ class SyncCommand extends Command
     private $output;
     /** @var \Symfony\Component\Console\Style\SymfonyStyle */
     private $io;
-    /** @var array */
+    /** @var Config */
     private $config;
     /** @var \Redmine\Client */
     private $redmineClient;
@@ -96,7 +96,7 @@ class SyncCommand extends Command
      */
     protected function configure()
     {
-        $this->setName('sync')
+        $this->setName('sync:entries')
             ->setDefinition(
                 [
                     new InputArgument(
@@ -137,7 +137,7 @@ class SyncCommand extends Command
                     ),
                 ]
             )
-            ->setDescription('Pushes time entries from Harvest to Redmine');
+            ->setDescription('Sync time entries from Harvest to Redmine');
 
         $this->userTimeEntryErrors = array();
     }
@@ -148,18 +148,12 @@ class SyncCommand extends Command
     private function configurePSpell()
     {
         // Retrieve Redmine spelling dictionary wiki path.
-        if (isset($this->config['spellcheck']['project_name']) &&
-          isset($this->config['spellcheck']['wiki_page_name'])) {
-            $wiki_project_name = $this->config['spellcheck']['project_name'];
-            $wiki_page_name = $this->config['spellcheck']['wiki_page_name'];
-        } else {
+        try {
+            list($wiki_project_name, $wiki_page_name) = $this->config->getDictionaryProjectAndPage();
+        }
+        catch (\Exception $exception) {
             // Exit and log a warning if the wiki path variables are not set.
-            $this->io->warning(
-                sprintf(
-                    'Redmine dictionary wiki location not properly set in config.yml (see config.example.yml).'
-                )
-            );
-
+            $this->io->warning($exception->getMessage());
             return;
         }
 
@@ -230,44 +224,14 @@ class SyncCommand extends Command
     }
 
     /**
-     * Set configuration from config.yml.
-     */
-    private function setConfig()
-    {
-        if ($config_path = $this->input->getOption('config')) {
-            if (!file_exists($config_path)) {
-                throw new \Exception(sprintf('Could not find the config.yml file at %s', $config_path));
-            }
-        } else {
-            $config_path = 'config.yml';
-        }
-
-        // Load the configuration.
-        $yaml = new Yaml();
-        if (!file_exists($config_path)) {
-            throw new \Exception('Could not find a config.yml file.');
-        }
-        try {
-            $this->config = $yaml->parse(file_get_contents($config_path), true);
-        } catch (\Exception $e) {
-            $this->output->writeln(
-                sprintf(
-                    '<error>%s</error>',
-                    $e->getMessage()
-                )
-            );
-        }
-    }
-
-    /**
      * Set a Harvest client for later use.
      */
     private function setHarvestClient()
     {
         $this->harvestClient = new HarvestAPI();
-        $this->harvestClient->setUser($this->config['auth']['harvest']['mail']);
-        $this->harvestClient->setPassword($this->config['auth']['harvest']['pass']);
-        $this->harvestClient->setAccount($this->config['auth']['harvest']['account']);
+        $this->harvestClient->setUser($this->config->getHarvestMail());
+        $this->harvestClient->setPassword($this->config->getHarvestPassword());
+        $this->harvestClient->setAccount($this->config->getHarvestAccount());
     }
 
     /**
@@ -276,8 +240,8 @@ class SyncCommand extends Command
     private function setRedmineClient()
     {
         $this->redmineClient = new Redmine\Client(
-            $this->config['auth']['redmine']['url'],
-            $this->config['auth']['redmine']['apikey']
+            $this->config->getRedmineUrl(),
+            $this->config->getRedmineApiKey()
         );
     }
 
@@ -381,11 +345,7 @@ class SyncCommand extends Command
      */
     protected function logErrorsToSlack($harvest_id, array $errors)
     {
-        if (isset($this->config['auth']['slack']['debug-user'])) {
-            $slack_id = $this->config['auth']['slack']['debug-user'];
-        } else {
-            $slack_id = $this->slackUserMap[$harvest_id];
-        }
+        $slack_id = $this->config->getSlackDebugUser() ?? $this->slackUserMap[$harvest_id];
         if (empty($slack_id)) {
             $this->output->writeln(
                 sprintf(
@@ -396,13 +356,11 @@ class SyncCommand extends Command
 
             return;
         }
-        if (isset($this->config['auth']['slack']['webhook_url'])) {
-            $slack_url = $this->config['auth']['slack']['webhook_url'];
-        } else {
+        $slack_url = $this->config->getSlackWebhookUrl();
+        if (!$slack_url) {
             $this->output->writeln(
                 '<warning>Slack webhook URL not configured. Errors will not be logged to slack.</warning>'
             );
-
             return;
         }
 
@@ -617,14 +575,12 @@ class SyncCommand extends Command
         }
 
         // When debugging, limit project map to projects specified in config.
-        if (is_array($this->config['sync']['projects']['debug_projects'])) {
-            foreach ($this->projectMap as $harvest_id => $redmine_projects) {
-                if (in_array($harvest_id, $this->config['sync']['projects']['debug_projects'])) {
-                    $this->debugProjects[$harvest_id] = $redmine_projects;
-                }
+        foreach ($this->projectMap as $harvest_id => $redmine_projects) {
+            if (in_array($harvest_id, $this->config->getDebugProjectsList())) {
+                $this->debugProjects[$harvest_id] = $redmine_projects;
             }
-            $this->projectMap = $this->debugProjects;
         }
+        $this->projectMap = $this->debugProjects;
 
         if (!count($this->projectMap)) {
             throw new Exception(('Unable to populate project map!'));
@@ -1156,7 +1112,7 @@ class SyncCommand extends Command
     {
         return sprintf(
             'https://%s.harvestapp.com/time/day/%s/%d#timesheet_day_entry_%d',
-            $this->config['auth']['harvest']['account'],
+            $this->config->getHarvestAccount(),
             str_replace('-', '/', $entry->get('spent-at')),
             $entry->get('user-id'),
             $entry->get('id')
@@ -1178,7 +1134,13 @@ class SyncCommand extends Command
         $range = sprintf('%s to %s', $this->getRange()->from(), $this->getRange()->to());
         $io->title(sprintf('Sumac time sync from  %s', $range));
         // Load configuration.
-        $this->setConfig();
+        try {
+            $this->config = new Config();
+        }
+        catch (\Exception $exception) {
+            $this->io->error($exception->getMessage());
+            return;
+        }
 
         // Initialize the Harvest client.
         $this->setHarvestClient();
@@ -1218,10 +1180,10 @@ class SyncCommand extends Command
         $this->io->section(sprintf('Processing %d Harvest time entries', count($this->cachedHarvestEntries)));
         $this->io->progressStart(count($this->cachedHarvestEntries));
 
-        $spell_check_only = !empty($this->config['sync']['projects']['spell_check_only']) ?
-            $this->config['sync']['projects']['spell_check_only'] : [];
+        $spell_check_only = $this->config->getSpellCheckOnlyProjectsList();
         $project_id_to_client_id_map = [];
-        $dont_spell_check = $this->config['sync']['clients']['dont_spell_check'] ??[];
+
+        $dont_spell_check = $this->config->getSkipSpellcheckClientsList();
         foreach ($this->cachedHarvestEntries as $harvest_entry) {
             // Populate a map of Harvest project IDs to Client IDs so we don't have to make a GET request on every
             // time entry.
