@@ -67,8 +67,8 @@ class FindDuplicatesCommand extends Command
     }
 
     protected function getDuplicatesFromTimeEntries(array $time_entries) :array {
-        $indexed = [];
-        $duplicates = [];
+        $indexed = $this->indexEntriesByHarvestId($time_entries['time_entries']);
+        return $this->filterDuplicates($indexed);
         foreach ($time_entries['time_entries'] as $entry) {
             $harvest_id = NULL;
             foreach ($entry['custom_fields'] as $custom_field) {
@@ -93,6 +93,41 @@ class FindDuplicatesCommand extends Command
         }
 
         return $duplicates;
+    }
+
+    public function filterDuplicates(array $time_entries) {
+        $duplicates = [];
+        foreach ($time_entries as $harvest_id => $entry) {
+            if (count($entry) > 1) {
+                // If there's more than one entry, we have a duplicate.
+                $sorted_entries = $entry;
+                sort($sorted_entries);
+                // Remove the last item, so we keep the newest time entry.
+                array_pop($sorted_entries);
+                $duplicates[$harvest_id] = $sorted_entries;
+            }
+        }
+        return $duplicates;
+    }
+
+    protected function indexEntriesByHarvestId(array $time_entries) {
+        $indexed = [];
+        foreach ($time_entries as $entry) {
+            $harvest_id = NULL;
+            foreach ($entry['custom_fields'] as $custom_field) {
+                if ($custom_field['id'] == self::HARVEST_TIME_ENTRY_ID_FIELD) {
+                    $harvest_id = $custom_field['value'];
+                    // Break out of the loop.
+                    break;
+                }
+            }
+            if (!$harvest_id) {
+                // If there's no Harvest ID, skip this entry.
+                continue;
+            }
+            $indexed[$harvest_id][] = $entry['id'];
+        }
+        return $indexed;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output) {
