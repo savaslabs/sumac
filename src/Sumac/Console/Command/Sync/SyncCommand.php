@@ -73,7 +73,7 @@ class SyncCommand extends Command
     /**
      * @var array
      */
-    private $syncSuccesses;
+    private $syncSuccesses = [];
     /**
      * @var array
      * Stores which projects to load Harvest & Redmine data for when debugging
@@ -117,7 +117,7 @@ class SyncCommand extends Command
      * @var array
      * Store error notifications by Harvest user ID
      */
-    protected $userTimeEntryErrors;
+    protected $userTimeEntryErrors = [];
 
     /**
      * @var int
