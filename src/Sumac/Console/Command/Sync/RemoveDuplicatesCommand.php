@@ -63,13 +63,24 @@ class RemoveDuplicatesCommand extends Command {
     }
 
     protected function purgeTimeEntries(array $time_entries) {
+        $errors = [];
+        $successes = [];
+        $this->io->progressStart(count($time_entries));
         foreach ($time_entries as $harvest_id => $redmine_ids) {
             foreach ($redmine_ids as $redmine_id) {
                 // TODO Handle errors here.
                 $result = $this->redmineClient->time_entry->remove($redmine_id);
+                if (!$result) {
+                    $errors[] = $redmine_id;
+                }
+                if ($result) {
+                    $successes[] = $redmine_id;
+                }
             }
-            $this->io->success(sprintf('Removed Redmine time entry IDs %s for Harvest ID %d', implode(',', $redmine_ids), $harvest_id));
+            $this->io->progressAdvance();
         }
+        $this->io->progressFinish();
+        // TODO: Log the errors and successes.
     }
 
     protected function sortTimeEntries($time_entries) {

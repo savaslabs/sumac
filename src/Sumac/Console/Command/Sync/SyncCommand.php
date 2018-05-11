@@ -887,7 +887,6 @@ class SyncCommand extends Command
         array $redmine_time_entry_params,
         $existing_redmine_time_entry
     ) {
-        $result = false;
         $time_entry_api = new Redmine\Api\TimeEntry($this->redmineClient);
         if ($existing_redmine_time_entry === false) {
             $result = $time_entry_api->create($redmine_time_entry_params);

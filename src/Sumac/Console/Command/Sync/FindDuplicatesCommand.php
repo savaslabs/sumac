@@ -53,6 +53,10 @@ class FindDuplicatesCommand extends Command
         $this->redmineClient = new Redmine\Client($this->config->getRedmineUrl(), $this->config->getRedmineApiKey());
     }
 
+    public function setShortForm($short_form) {
+        $this->short_form = $short_form;
+    }
+
     protected function getTimeEntries() :array {
         try {
             return $this->redmineClient->time_entry->all([
@@ -69,30 +73,6 @@ class FindDuplicatesCommand extends Command
     protected function getDuplicatesFromTimeEntries(array $time_entries) :array {
         $indexed = $this->indexEntriesByHarvestId($time_entries['time_entries']);
         return $this->filterDuplicates($indexed);
-        foreach ($time_entries['time_entries'] as $entry) {
-            $harvest_id = NULL;
-            foreach ($entry['custom_fields'] as $custom_field) {
-                if ($custom_field['id'] == self::HARVEST_TIME_ENTRY_ID_FIELD) {
-                    $harvest_id = $custom_field['value'];
-                    // Break out of the loop.
-                    break;
-                }
-            }
-            if (!$harvest_id) {
-                // If there's no Harvest ID, skip this entry.
-                continue;
-            }
-            // The first time we've seen a Harvest ID, it won't be in the $indexed array. On the second time
-            // we've seen it, it will be in $indexed, so then we can add it to the duplicates.
-            if (isset($indexed[$harvest_id])) {
-               $duplicates[$harvest_id][] = $this->short_form ? $entry['id'] : $entry;
-            }
-            // Add the item to the indexed array with the Harvest ID as the key, so that on the second pass
-            // we can see if it's already been found.
-            $indexed[$harvest_id] = $entry['id'];
-        }
-
-        return $duplicates;
     }
 
     public function filterDuplicates(array $time_entries) {
@@ -110,22 +90,25 @@ class FindDuplicatesCommand extends Command
         return $duplicates;
     }
 
-    protected function indexEntriesByHarvestId(array $time_entries) {
+    public function indexEntriesByHarvestId(array $time_entries) {
         $indexed = [];
         foreach ($time_entries as $entry) {
             $harvest_id = NULL;
-            foreach ($entry['custom_fields'] as $custom_field) {
-                if ($custom_field['id'] == self::HARVEST_TIME_ENTRY_ID_FIELD) {
-                    $harvest_id = $custom_field['value'];
-                    // Break out of the loop.
-                    break;
+            if (isset($entry['custom_fields'])) {
+                foreach ($entry['custom_fields'] as $custom_field) {
+                    if ($custom_field['id'] == self::HARVEST_TIME_ENTRY_ID_FIELD) {
+                        $harvest_id = $custom_field['value'];
+                        // Break out of the loop.
+                        break;
+                    }
                 }
             }
             if (!$harvest_id) {
-                // If there's no Harvest ID, skip this entry.
+                // If there's no Harvest ID, skip indexing this entry.
                 continue;
             }
-            $indexed[$harvest_id][] = $entry['id'];
+            // Add the Redmine entry or just its ID to the index.
+            $indexed[$harvest_id][] = $this->short_form ? $entry['id'] : $entry;
         }
         return $indexed;
     }
