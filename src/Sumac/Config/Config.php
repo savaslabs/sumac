@@ -32,7 +32,9 @@ class Config
                 $this->config['spellcheck']['wiki_page_name']
             ];
         }
-        throw new \Exception('Redmine dictionary wiki location not properly set in config.yml (see config.example.yml).');
+        throw new \Exception(
+            'Redmine dictionary wiki location not properly set in config.yml (see config.example.yml).'
+        );
     }
 
     public function getHarvestMail()
