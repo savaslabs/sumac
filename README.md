@@ -99,3 +99,9 @@ Sumac will also look for a custom word dictionary wiki in Redmine to use when sp
 #### Projects
 
 You can use the `exclude` section to add the Harvest IDs for projects that you don't want to push time entries to. This is helpful for "Internal" or "Overhead" projects that you don't need to sync with Redmine projects.
+
+### Remove duplicates
+
+The `sync:find-duplicates` command will search through Redmine to locate time entries containing duplicate Harvest ID references. Recommended usage is to use the `-s` flag to reduce the amount of output you get. The command will output a JSON encoded string.
+
+The `sync:remove-duplicates {data}` command will accept the output of `sync:find-duplicates` and remove the duplicate time entries.
