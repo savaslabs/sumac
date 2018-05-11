@@ -226,7 +226,8 @@ class SyncCommand extends Command
 
         $this->pspellLink = pspell_new('en');
         foreach ($words_to_ignore as $word) {
-            pspell_add_to_session($this->pspellLink, $word);
+            // Ignore warnings from pspell. I know, it's awful.
+            @pspell_add_to_session($this->pspellLink, $word);
         }
     }
 
