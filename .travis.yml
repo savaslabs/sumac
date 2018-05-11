@@ -1,5 +1,10 @@
 language: php
 php:
   - '7.1'
+cache:
+  directories:
+    - vendor
+install:
+  - composer install
 script:
   - vendor/bin/phpunit src/
