@@ -18,75 +18,109 @@ use Carbon\Carbon;
 
 class SyncCommand extends Command
 {
-    /** @var \Harvest\Model\Range */
+    /**
+     * @var \Harvest\Model\Range
+     */
     private $range;
-    /** @var \Symfony\Component\Console\Input\InputInterface */
+    /**
+     * @var \Symfony\Component\Console\Input\InputInterface
+     */
     private $input;
-    /** @var \Symfony\Component\Console\Output\OutputInterface */
+    /**
+     * @var \Symfony\Component\Console\Output\OutputInterface
+     */
     private $output;
-    /** @var \Symfony\Component\Console\Style\SymfonyStyle */
+    /**
+     * @var \Symfony\Component\Console\Style\SymfonyStyle
+     */
     private $io;
-    /** @var Config */
+    /**
+     * @var Config
+     */
     private $config;
-    /** @var \Redmine\Client */
+    /**
+     * @var \Redmine\Client
+     */
     private $redmineClient;
-    /** @var \Harvest\HarvestAPI */
+    /**
+     * @var \Harvest\HarvestAPI
+     */
     private $harvestClient;
-    /** @var array */
+    /**
+     * @var array
+     */
     private $redmineTimeEntries;
-    /** @var int
+    /**
+     * @var int
      * Custom field ID for the Harvest Time Entry ID field
      * on Redmine time entries
      */
     private $harvestTimeEntryFieldId = 20;
-    /** @var int
+    /**
+     * @var int
      * Custom field ID for the Project Manager ID field on Redmine projects
      */
     private $redmineProjectManagerFieldId = 21;
-    /** @var int
+    /**
+     * @var int
      * Custom field ID for the Remaining Time field on Redmine issues
      */
     private $remainingTimeFieldId = 23;
-    /** @var array */
+    /**
+     * @var array
+     */
     private $syncErrors = array();
-    /** @var array */
+    /**
+     * @var array
+     */
     private $syncSuccesses;
-    /** @var array
+    /**
+     * @var array
      * Stores which projects to load Harvest & Redmine data for when debugging
      */
     protected $debugProjects = array();
-    /** @var array
+    /**
+     * @var array
      * Maps harvest IDs to Redmine IDs
      */
     protected $projectMap;
 
-    /** @var array
+    /**
+     * @var array
      * Maps Redmine users to Harvest IDs
      */
     protected $userMap;
 
-    /** @var array */
+    /**
+     * @var array
+     */
     protected $syncedHarvestRecords = array();
 
-    /** @var array */
+    /**
+     * @var array
+     */
     protected $cachedHarvestEntries = array();
 
-    /** @var array
+    /**
+     * @var array
      * Maps Redmine Project IDs to Redmine "Project management" issue arrays
      */
     protected $redmineProjectsToPmIssuesMap = array();
 
-    /** @var array
+    /**
+     * @var array
      * Maps Harvest IDs to Slack usernames
      */
     protected $slackUserMap;
 
-    /** @var array
+    /**
+     * @var array
      * Store error notifications by Harvest user ID
      */
     protected $userTimeEntryErrors;
 
-    /** @var int
+    /**
+     * @var int
      * Store PSpell dictionary identifier so we don't have to reload each time
      */
     protected $pspellLink;
@@ -150,8 +184,7 @@ class SyncCommand extends Command
         // Retrieve Redmine spelling dictionary wiki path.
         try {
             list($wiki_project_name, $wiki_page_name) = $this->config->getDictionaryProjectAndPage();
-        }
-        catch (\Exception $exception) {
+        } catch (\Exception $exception) {
             // Exit and log a warning if the wiki path variables are not set.
             $this->io->warning($exception->getMessage());
             return;
@@ -258,10 +291,12 @@ class SyncCommand extends Command
         if (!empty($this->debugProjects)) {
             $all_time_entries = $this->getDebugProjectsTimeEntries();
         } else {
-            $all_time_entries = $this->redmineClient->time_entry->all(array(
-              'limit' => 1000000,
-              'offset' => 0,
-            ));
+            $all_time_entries = $this->redmineClient->time_entry->all(
+                array(
+                'limit' => 1000000,
+                'offset' => 0,
+                )
+            );
         }
 
         if (!isset($all_time_entries['time_entries'])) {
@@ -310,11 +345,13 @@ class SyncCommand extends Command
         foreach ($this->debugProjects as $harvest_id => $redmine_projects) {
             foreach ($redmine_projects as $project_id => $project_name) {
                 if (!in_array($project_id, $fetched_projects)) {
-                    $project_time_entries = $this->redmineClient->time_entry->all(array(
-                      'limit' => 1000000,
-                      'offset' => 0,
-                      'project_id' => $project_id,
-                    ));
+                    $project_time_entries = $this->redmineClient->time_entry->all(
+                        array(
+                        'limit' => 1000000,
+                        'offset' => 0,
+                        'project_id' => $project_id,
+                        )
+                    );
                     if (isset($project_time_entries['time_entries'])) {
                         if (!isset($all_time_entries['time_entries'])) {
                             $all_time_entries['time_entries'] = $project_time_entries['time_entries'];
@@ -470,8 +507,12 @@ class SyncCommand extends Command
         }
 
         $client = new \GuzzleHttp\Client();
-        $res = $client->request('POST', $slack_url, [
-            'body' => json_encode([
+        $res = $client->request(
+            'POST',
+            $slack_url,
+            [
+            'body' => json_encode(
+                [
                 'username' => 'Sumac',
                 'channel' => $slack_id,
                 'text' => sprintf(
@@ -487,8 +528,10 @@ class SyncCommand extends Command
                         'mrkdwn_in' => ['fields'],
                     ],
                 ],
-            ]),
-        ]);
+                ]
+            ),
+            ]
+        );
 
         // Log all Slack messages to stdout.
         if ($this->input->getOption('log-slack-notifications') && is_array($fields)) {
@@ -638,7 +681,9 @@ class SyncCommand extends Command
     {
         $entries = [];
         // Get entries.
-        /** @var $projects \Harvest\Model\Project */
+        /**
+ * @var $projects \Harvest\Model\Project
+*/
         $project_data = $project->get('data');
         if (!is_object($project_data)) {
             // TODO: Better error message.
@@ -695,9 +740,14 @@ class SyncCommand extends Command
         );
 
         // Look for an existing "Project management" issue.
-        $pm_issue = current(array_filter($project_issues['issues'], function ($issue) {
-            return $issue['subject'] == 'Project management';
-        }));
+        $pm_issue = current(
+            array_filter(
+                $project_issues['issues'],
+                function ($issue) {
+                    return $issue['subject'] == 'Project management';
+                }
+            )
+        );
         if ($pm_issue && count($pm_issue)) {
             // Ping PM that a time entry without # was filed here.
             // Get project manager user reference, and find their Slack ID.
@@ -923,7 +973,8 @@ class SyncCommand extends Command
             );
             if ($remaining_time_key) {
                 if (isset($redmine_issue['issue']['estimated_hours'])
-                    && $redmine_issue['issue']['estimated_hours'] > 0) {
+                    && $redmine_issue['issue']['estimated_hours'] > 0
+                ) {
                     $estimated_hours = isset($redmine_issue['issue']['estimated_hours']) ?
                         $redmine_issue['issue']['estimated_hours'] : 0;
                     $spent_hours = isset($redmine_issue['issue']['spent_hours']) ?
@@ -1079,11 +1130,13 @@ class SyncCommand extends Command
             $redmine_project_name = current(array_values($project));
             $project_data_result = $this->harvestClient->getProject($harvest_id);
             if ($project_data_result->get('code') !== 200) {
-                $this->output->writeln(sprintf(
-                    '- <error>Could not get project data for Harvest ID %d associated with Redmine project %s!',
-                    $harvest_id,
-                    $redmine_project_name
-                ));
+                $this->output->writeln(
+                    sprintf(
+                        '- <error>Could not get project data for Harvest ID %d associated with Redmine project %s!',
+                        $harvest_id,
+                        $redmine_project_name
+                    )
+                );
                 continue;
             }
             $entries = $this->getHarvestTimeEntries($project_data_result);
@@ -1135,8 +1188,7 @@ class SyncCommand extends Command
         // Load configuration.
         try {
             $this->config = new Config();
-        }
-        catch (\Exception $exception) {
+        } catch (\Exception $exception) {
             $this->io->error($exception->getMessage());
             return;
         }

@@ -4,7 +4,8 @@ namespace Sumac\Config;
 
 use Symfony\Component\Yaml\Yaml;
 
-class Config {
+class Config
+{
 
     private $config = [];
 
@@ -21,9 +22,11 @@ class Config {
         $this->config = $yaml->parse(file_get_contents($config_path), true);
     }
 
-    public function getDictionaryProjectAndPage() {
-        if (isset($this->config['spellcheck']['project_name']) &&
-            isset($this->config['spellcheck']['wiki_page_name'])) {
+    public function getDictionaryProjectAndPage()
+    {
+        if (isset($this->config['spellcheck']['project_name'])
+            && isset($this->config['spellcheck']['wiki_page_name'])
+        ) {
             return [
                 $this->config['spellcheck']['project_name'],
                 $this->config['spellcheck']['wiki_page_name']
@@ -32,34 +35,39 @@ class Config {
         throw new \Exception('Redmine dictionary wiki location not properly set in config.yml (see config.example.yml).');
     }
 
-    public function getHarvestMail() {
+    public function getHarvestMail()
+    {
         return $this->config['auth']['harvest']['mail'];
     }
 
-    public function getHarvestPassword() {
+    public function getHarvestPassword()
+    {
         return $this->config['auth']['harvest']['pass'];
     }
 
-    public function getHarvestAccount() {
+    public function getHarvestAccount()
+    {
         return $this->config['auth']['harvest']['account'];
     }
 
-    public function getRedmineUrl() {
+    public function getRedmineUrl()
+    {
         return $this->config['auth']['redmine']['url'];
     }
 
-    public function getRedmineApiKey() {
+    public function getRedmineApiKey()
+    {
         return $this->config['auth']['redmine']['apikey'];
     }
 
     public function getSlackDebugUser()
     {
-        return $this->config['auth']['slack']['debug-user'] ?? NULL;
+        return $this->config['auth']['slack']['debug-user'] ?? null;
     }
 
     public function getSlackWebhookUrl()
     {
-        return $this->config['auth']['slack']['webhook_url'] ?? NULL
+        return $this->config['auth']['slack']['webhook_url'] ?? null
             ;
     }
 

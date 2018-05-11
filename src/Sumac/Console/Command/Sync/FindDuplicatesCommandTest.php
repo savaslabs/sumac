@@ -8,7 +8,6 @@
 
 namespace Sumac\Console\Command\Sync;
 
-
 use PHPUnit\Framework\TestCase;
 
 class FindDuplicatesCommandTest extends TestCase
@@ -24,7 +23,6 @@ class FindDuplicatesCommandTest extends TestCase
     {
         $command = new FindDuplicatesCommand();
         $this->assertEquals($command->filterDuplicates($input_array), $output_array);
-
     }
 
     /**
@@ -33,7 +31,8 @@ class FindDuplicatesCommandTest extends TestCase
      *
      * @dataProvider provideSampleTimeEntryArray
      */
-    public function testIndexEntries(array $input_array, array $output_array) {
+    public function testIndexEntries(array $input_array, array $output_array)
+    {
         $command = new FindDuplicatesCommand();
         $command->setShortForm(true);
         $this->assertEquals($command->indexEntriesByHarvestId($input_array), $output_array);
@@ -46,7 +45,8 @@ class FindDuplicatesCommandTest extends TestCase
      *
      * @return array
      */
-    public function provideSampleTimeEntryArray() {
+    public function provideSampleTimeEntryArray()
+    {
         return [
             [
                 [
@@ -133,7 +133,8 @@ class FindDuplicatesCommandTest extends TestCase
      *
      * @return array
      */
-    public function provideSampleDuplicateArrays() {
+    public function provideSampleDuplicateArrays()
+    {
         return [
             [
                 [

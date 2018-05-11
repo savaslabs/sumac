@@ -12,7 +12,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Redmine;
 
-class RemoveDuplicatesCommand extends Command {
+class RemoveDuplicatesCommand extends Command
+{
 
     /**
      * @var SymfonyStyle
@@ -29,16 +30,19 @@ class RemoveDuplicatesCommand extends Command {
      */
     private $config;
 
-    protected function configure() {
+    protected function configure()
+    {
         $this->setName('sync:remove-duplicates')
             ->setDescription('Purge duplicate time entries from Redmine.')
-        ->setDefinition([
-            new InputArgument(
-                'IDs',
-                1,
-                'A JSON encoded list of Harvest IDs as keys with the Redmine IDs as values.'
-            )
-        ]);
+            ->setDefinition(
+                [
+                new InputArgument(
+                    'IDs',
+                    1,
+                    'A JSON encoded list of Harvest IDs as keys with the Redmine IDs as values.'
+                )
+                ]
+            );
     }
 
     protected function initialize(InputInterface $input, OutputInterface $output)
@@ -46,8 +50,7 @@ class RemoveDuplicatesCommand extends Command {
         $this->io = new SymfonyStyle($input, $output);
         try {
             $this->config = new Config();
-        }
-        catch (\Exception $exception) {
+        } catch (\Exception $exception) {
             $this->io->error($exception->getMessage());
             return false;
         }
@@ -62,7 +65,8 @@ class RemoveDuplicatesCommand extends Command {
         $this->purgeTimeEntries($time_entries);
     }
 
-    protected function purgeTimeEntries(array $time_entries) {
+    protected function purgeTimeEntries(array $time_entries)
+    {
         $errors = [];
         $successes = [];
         $this->io->progressStart(count($time_entries));
@@ -83,7 +87,8 @@ class RemoveDuplicatesCommand extends Command {
         // TODO: Log the errors and successes.
     }
 
-    protected function sortTimeEntries($time_entries) {
+    protected function sortTimeEntries($time_entries)
+    {
         foreach ($time_entries as $harvest_id => &$redmine_ids) {
             sort($redmine_ids, SORT_NUMERIC);
             // If more than one duplicate, keep the most recent Redmine time entry and remove the oldest ones.
@@ -93,5 +98,4 @@ class RemoveDuplicatesCommand extends Command {
         }
         return $time_entries;
     }
-
 }

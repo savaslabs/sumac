@@ -15,35 +15,45 @@ class FindDuplicatesCommand extends Command
 
     const HARVEST_TIME_ENTRY_ID_FIELD = 20;
 
-    /** @var Config */
+    /**
+     * @var Config
+     */
     private $config;
-    /** @var Redmine\Client */
+    /**
+     * @var Redmine\Client
+     */
     private $redmineClient;
-    /** @var SymfonyStyle */
+    /**
+     * @var SymfonyStyle
+     */
     private $io;
-    /** @var bool */
-    private $short_form = FALSE;
+    /**
+     * @var bool
+     */
+    private $short_form = false;
 
-    protected function configure() {
+    protected function configure()
+    {
         $this->setName('sync:find-duplicates')
             ->setDescription('Find duplicate time entries')
-            ->setDefinition([
+            ->setDefinition(
+                [
                 new InputOption(
                     'short',
                     's',
                     null,
                     'Return only IDs rather than full time entries'
                 )
-            ])
-        ;
+                ]
+            );
     }
 
-    protected function initialize(InputInterface $input, OutputInterface $output) {
+    protected function initialize(InputInterface $input, OutputInterface $output)
+    {
         $this->io = new SymfonyStyle($input, $output);
         try {
             $this->config = new Config();
-        }
-        catch (\Exception $exception) {
+        } catch (\Exception $exception) {
             $this->io->error($exception->getMessage());
             return false;
         }
@@ -53,29 +63,34 @@ class FindDuplicatesCommand extends Command
         $this->redmineClient = new Redmine\Client($this->config->getRedmineUrl(), $this->config->getRedmineApiKey());
     }
 
-    public function setShortForm($short_form) {
+    public function setShortForm($short_form)
+    {
         $this->short_form = $short_form;
     }
 
-    protected function getTimeEntries() :array {
+    protected function getTimeEntries() :array
+    {
         try {
-            return $this->redmineClient->time_entry->all([
+            return $this->redmineClient->time_entry->all(
+                [
                 'limit' => 1000000,
                 'offset' => 0,
-            ]);
-        }
-        catch (\Exception $exception) {
+                ]
+            );
+        } catch (\Exception $exception) {
             $this->io->error('Unable to connect to Redmine. Error: ' . $exception->getMessage());
             return [];
         }
     }
 
-    protected function getDuplicatesFromTimeEntries(array $time_entries) :array {
+    protected function getDuplicatesFromTimeEntries(array $time_entries) :array
+    {
         $indexed = $this->indexEntriesByHarvestId($time_entries['time_entries']);
         return $this->filterDuplicates($indexed);
     }
 
-    public function filterDuplicates(array $time_entries) {
+    public function filterDuplicates(array $time_entries)
+    {
         $duplicates = [];
         foreach ($time_entries as $harvest_id => $entry) {
             if (count($entry) > 1) {
@@ -90,10 +105,11 @@ class FindDuplicatesCommand extends Command
         return $duplicates;
     }
 
-    public function indexEntriesByHarvestId(array $time_entries) {
+    public function indexEntriesByHarvestId(array $time_entries)
+    {
         $indexed = [];
         foreach ($time_entries as $entry) {
-            $harvest_id = NULL;
+            $harvest_id = null;
             if (isset($entry['custom_fields'])) {
                 foreach ($entry['custom_fields'] as $custom_field) {
                     if ($custom_field['id'] == self::HARVEST_TIME_ENTRY_ID_FIELD) {
@@ -113,7 +129,8 @@ class FindDuplicatesCommand extends Command
         return $indexed;
     }
 
-    protected function execute(InputInterface $input, OutputInterface $output) {
+    protected function execute(InputInterface $input, OutputInterface $output)
+    {
 
         $time_entries = $this->getTimeEntries();
         if (!$time_entries) {
@@ -124,5 +141,4 @@ class FindDuplicatesCommand extends Command
 
         return $this->io->write(json_encode($duplicates));
     }
-
 }
