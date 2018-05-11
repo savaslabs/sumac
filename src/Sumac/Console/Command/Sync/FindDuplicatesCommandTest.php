@@ -1,10 +1,4 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: kostajh
- * Date: 5/11/18
- * Time: 09:20
- */
 
 namespace Sumac\Console\Command\Sync;
 
