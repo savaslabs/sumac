@@ -16,7 +16,7 @@ class FindDuplicatesCommandTest extends TestCase
     public function testFilterDuplicates(array $input_array, array $output_array)
     {
         $command = new FindDuplicatesCommand();
-        $this->assertEquals($command->filterDuplicates($input_array), $output_array);
+        $this->assertEquals($command->getDuplicates($input_array), $output_array);
     }
 
     /**
@@ -139,7 +139,8 @@ class FindDuplicatesCommandTest extends TestCase
                 ],
                 [
                     123 => [
-                        456
+                        456,
+                        789
                     ]
                 ]
             ],
@@ -159,7 +160,8 @@ class FindDuplicatesCommandTest extends TestCase
                     123 => [
                         111,
                         123,
-                        456
+                        456,
+                        789
                     ]
                 ]
             ]

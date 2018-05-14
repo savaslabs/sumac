@@ -83,13 +83,19 @@ class FindDuplicatesCommand extends Command
         }
     }
 
-    protected function getDuplicatesFromTimeEntries(array $time_entries) :array
+    /**
+     * Given an array of time entries retrieved from Redmine, get an indexed array of duplicates.
+     *
+     * @param array $time_entries
+     * @return array
+     */
+    public function getDuplicatesFromTimeEntries(array $time_entries) :array
     {
         $indexed = $this->indexEntriesByHarvestId($time_entries['time_entries']);
-        return $this->filterDuplicates($indexed);
+        return $this->getDuplicates($indexed);
     }
 
-    public function filterDuplicates(array $time_entries)
+    public function getDuplicates(array $time_entries)
     {
         $duplicates = [];
         foreach ($time_entries as $harvest_id => $entry) {
@@ -97,8 +103,6 @@ class FindDuplicatesCommand extends Command
                 // If there's more than one entry, we have a duplicate.
                 $sorted_entries = $entry;
                 sort($sorted_entries);
-                // Remove the last item, so we keep the newest time entry.
-                array_pop($sorted_entries);
                 $duplicates[$harvest_id] = $sorted_entries;
             }
         }
