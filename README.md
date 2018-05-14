@@ -43,13 +43,10 @@ If you are developing, you'll want to run `composer install` on the host, to get
 
 #### Local Debugging
 
-In order to debug locally, you'll need to install some dependencies on your host. These steps assume you're running OS X.
+In order to debug locally, you'll need to install some dependencies on your host.
 
 - Install PHP 7 and Xdebug if they are not already installed (you can check your PHP version via `php --version`):
-    - `brew install homebrew/php/php70-xdebug`
-    - Install PHP 7 following [this guide](https://developerjack.com/blog/2015/12/11/Installing-PHP7-with-homebrew/)
-- Install pspell:
-    - `brew install homebrew/php/php70-pspell`
+- Install pspell
 - Update the redmine URL in `config.yml` from 'http://app:3000' to 'https://local.pm.savaslabs.com'
 - In PhpStorm preferences, search for "Interpreter" and click on the preference option for "PHP" on the left. Add a new interpreter for PHP 7 and make sure the path is `/usr/local/bin/php` and not `/usr/bin/php`
 - In PhpStorm go to Run -> Edit Configurations
@@ -99,3 +96,9 @@ Sumac will also look for a custom word dictionary wiki in Redmine to use when sp
 #### Projects
 
 You can use the `exclude` section to add the Harvest IDs for projects that you don't want to push time entries to. This is helpful for "Internal" or "Overhead" projects that you don't need to sync with Redmine projects.
+
+### Remove duplicates
+
+The `sync:find-duplicates` command will search through Redmine to locate time entries containing duplicate Harvest ID references. Recommended usage is to use the `-s` flag to reduce the amount of output you get. The command will output a JSON encoded string.
+
+The `sync:remove-duplicates {data}` command will accept the output of `sync:find-duplicates` and remove the duplicate time entries.

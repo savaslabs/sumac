@@ -1,7 +1,8 @@
 <?php
 
-namespace Sumac\Console\Command;
+namespace Sumac\Console\Command\Sync;
 
+use Sumac\Config\Config;
 use Symfony\Component\Config\Definition\Exception\Exception;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -9,7 +10,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Yaml\Yaml;
 use Redmine;
 use Harvest\HarvestAPI;
 use Harvest\Model\Range;
@@ -18,75 +18,109 @@ use Carbon\Carbon;
 
 class SyncCommand extends Command
 {
-    /** @var \Harvest\Model\Range */
+    /**
+     * @var \Harvest\Model\Range
+     */
     private $range;
-    /** @var \Symfony\Component\Console\Input\InputInterface */
+    /**
+     * @var \Symfony\Component\Console\Input\InputInterface
+     */
     private $input;
-    /** @var \Symfony\Component\Console\Output\OutputInterface */
+    /**
+     * @var \Symfony\Component\Console\Output\OutputInterface
+     */
     private $output;
-    /** @var \Symfony\Component\Console\Style\SymfonyStyle */
+    /**
+     * @var \Symfony\Component\Console\Style\SymfonyStyle
+     */
     private $io;
-    /** @var array */
+    /**
+     * @var Config
+     */
     private $config;
-    /** @var \Redmine\Client */
+    /**
+     * @var \Redmine\Client
+     */
     private $redmineClient;
-    /** @var \Harvest\HarvestAPI */
+    /**
+     * @var \Harvest\HarvestAPI
+     */
     private $harvestClient;
-    /** @var array */
+    /**
+     * @var array
+     */
     private $redmineTimeEntries;
-    /** @var int
+    /**
+     * @var int
      * Custom field ID for the Harvest Time Entry ID field
      * on Redmine time entries
      */
     private $harvestTimeEntryFieldId = 20;
-    /** @var int
+    /**
+     * @var int
      * Custom field ID for the Project Manager ID field on Redmine projects
      */
     private $redmineProjectManagerFieldId = 21;
-    /** @var int
+    /**
+     * @var int
      * Custom field ID for the Remaining Time field on Redmine issues
      */
     private $remainingTimeFieldId = 23;
-    /** @var array */
+    /**
+     * @var array
+     */
     private $syncErrors = array();
-    /** @var array */
-    private $syncSuccesses;
-    /** @var array
+    /**
+     * @var array
+     */
+    private $syncSuccesses = [];
+    /**
+     * @var array
      * Stores which projects to load Harvest & Redmine data for when debugging
      */
     protected $debugProjects = array();
-    /** @var array
+    /**
+     * @var array
      * Maps harvest IDs to Redmine IDs
      */
     protected $projectMap;
 
-    /** @var array
+    /**
+     * @var array
      * Maps Redmine users to Harvest IDs
      */
     protected $userMap;
 
-    /** @var array */
+    /**
+     * @var array
+     */
     protected $syncedHarvestRecords = array();
 
-    /** @var array */
+    /**
+     * @var array
+     */
     protected $cachedHarvestEntries = array();
 
-    /** @var array
+    /**
+     * @var array
      * Maps Redmine Project IDs to Redmine "Project management" issue arrays
      */
     protected $redmineProjectsToPmIssuesMap = array();
 
-    /** @var array
+    /**
+     * @var array
      * Maps Harvest IDs to Slack usernames
      */
     protected $slackUserMap;
 
-    /** @var array
+    /**
+     * @var array
      * Store error notifications by Harvest user ID
      */
-    protected $userTimeEntryErrors;
+    protected $userTimeEntryErrors = [];
 
-    /** @var int
+    /**
+     * @var int
      * Store PSpell dictionary identifier so we don't have to reload each time
      */
     protected $pspellLink;
@@ -96,7 +130,7 @@ class SyncCommand extends Command
      */
     protected function configure()
     {
-        $this->setName('sync')
+        $this->setName('sync:entries')
             ->setDefinition(
                 [
                     new InputArgument(
@@ -137,7 +171,7 @@ class SyncCommand extends Command
                     ),
                 ]
             )
-            ->setDescription('Pushes time entries from Harvest to Redmine');
+            ->setDescription('Sync time entries from Harvest to Redmine');
 
         $this->userTimeEntryErrors = array();
     }
@@ -148,18 +182,11 @@ class SyncCommand extends Command
     private function configurePSpell()
     {
         // Retrieve Redmine spelling dictionary wiki path.
-        if (isset($this->config['spellcheck']['project_name']) &&
-          isset($this->config['spellcheck']['wiki_page_name'])) {
-            $wiki_project_name = $this->config['spellcheck']['project_name'];
-            $wiki_page_name = $this->config['spellcheck']['wiki_page_name'];
-        } else {
+        try {
+            list($wiki_project_name, $wiki_page_name) = $this->config->getDictionaryProjectAndPage();
+        } catch (\Exception $exception) {
             // Exit and log a warning if the wiki path variables are not set.
-            $this->io->warning(
-                sprintf(
-                    'Redmine dictionary wiki location not properly set in config.yml (see config.example.yml).'
-                )
-            );
-
+            $this->io->warning($exception->getMessage());
             return;
         }
 
@@ -199,7 +226,8 @@ class SyncCommand extends Command
 
         $this->pspellLink = pspell_new('en');
         foreach ($words_to_ignore as $word) {
-            pspell_add_to_session($this->pspellLink, $word);
+            // Ignore warnings from pspell. I know, it's awful.
+            @pspell_add_to_session($this->pspellLink, $word);
         }
     }
 
@@ -230,44 +258,14 @@ class SyncCommand extends Command
     }
 
     /**
-     * Set configuration from config.yml.
-     */
-    private function setConfig()
-    {
-        if ($config_path = $this->input->getOption('config')) {
-            if (!file_exists($config_path)) {
-                throw new \Exception(sprintf('Could not find the config.yml file at %s', $config_path));
-            }
-        } else {
-            $config_path = 'config.yml';
-        }
-
-        // Load the configuration.
-        $yaml = new Yaml();
-        if (!file_exists($config_path)) {
-            throw new \Exception('Could not find a config.yml file.');
-        }
-        try {
-            $this->config = $yaml->parse(file_get_contents($config_path), true);
-        } catch (\Exception $e) {
-            $this->output->writeln(
-                sprintf(
-                    '<error>%s</error>',
-                    $e->getMessage()
-                )
-            );
-        }
-    }
-
-    /**
      * Set a Harvest client for later use.
      */
     private function setHarvestClient()
     {
         $this->harvestClient = new HarvestAPI();
-        $this->harvestClient->setUser($this->config['auth']['harvest']['mail']);
-        $this->harvestClient->setPassword($this->config['auth']['harvest']['pass']);
-        $this->harvestClient->setAccount($this->config['auth']['harvest']['account']);
+        $this->harvestClient->setUser($this->config->getHarvestMail());
+        $this->harvestClient->setPassword($this->config->getHarvestPassword());
+        $this->harvestClient->setAccount($this->config->getHarvestAccount());
     }
 
     /**
@@ -276,8 +274,8 @@ class SyncCommand extends Command
     private function setRedmineClient()
     {
         $this->redmineClient = new Redmine\Client(
-            $this->config['auth']['redmine']['url'],
-            $this->config['auth']['redmine']['apikey']
+            $this->config->getRedmineUrl(),
+            $this->config->getRedmineApiKey()
         );
     }
 
@@ -294,10 +292,12 @@ class SyncCommand extends Command
         if (!empty($this->debugProjects)) {
             $all_time_entries = $this->getDebugProjectsTimeEntries();
         } else {
-            $all_time_entries = $this->redmineClient->time_entry->all(array(
-              'limit' => 1000000,
-              'offset' => 0,
-            ));
+            $all_time_entries = $this->redmineClient->time_entry->all(
+                array(
+                'limit' => 1000000,
+                'offset' => 0,
+                )
+            );
         }
 
         if (!isset($all_time_entries['time_entries'])) {
@@ -346,11 +346,13 @@ class SyncCommand extends Command
         foreach ($this->debugProjects as $harvest_id => $redmine_projects) {
             foreach ($redmine_projects as $project_id => $project_name) {
                 if (!in_array($project_id, $fetched_projects)) {
-                    $project_time_entries = $this->redmineClient->time_entry->all(array(
-                      'limit' => 1000000,
-                      'offset' => 0,
-                      'project_id' => $project_id,
-                    ));
+                    $project_time_entries = $this->redmineClient->time_entry->all(
+                        array(
+                        'limit' => 1000000,
+                        'offset' => 0,
+                        'project_id' => $project_id,
+                        )
+                    );
                     if (isset($project_time_entries['time_entries'])) {
                         if (!isset($all_time_entries['time_entries'])) {
                             $all_time_entries['time_entries'] = $project_time_entries['time_entries'];
@@ -381,11 +383,7 @@ class SyncCommand extends Command
      */
     protected function logErrorsToSlack($harvest_id, array $errors)
     {
-        if (isset($this->config['auth']['slack']['debug-user'])) {
-            $slack_id = $this->config['auth']['slack']['debug-user'];
-        } else {
-            $slack_id = $this->slackUserMap[$harvest_id];
-        }
+        $slack_id = $this->config->getSlackDebugUser() ?? $this->slackUserMap[$harvest_id];
         if (empty($slack_id)) {
             $this->output->writeln(
                 sprintf(
@@ -396,13 +394,11 @@ class SyncCommand extends Command
 
             return;
         }
-        if (isset($this->config['auth']['slack']['webhook_url'])) {
-            $slack_url = $this->config['auth']['slack']['webhook_url'];
-        } else {
+        $slack_url = $this->config->getSlackWebhookUrl();
+        if (!$slack_url) {
             $this->output->writeln(
                 '<warning>Slack webhook URL not configured. Errors will not be logged to slack.</warning>'
             );
-
             return;
         }
 
@@ -512,8 +508,12 @@ class SyncCommand extends Command
         }
 
         $client = new \GuzzleHttp\Client();
-        $res = $client->request('POST', $slack_url, [
-            'body' => json_encode([
+        $res = $client->request(
+            'POST',
+            $slack_url,
+            [
+            'body' => json_encode(
+                [
                 'username' => 'Sumac',
                 'channel' => $slack_id,
                 'text' => sprintf(
@@ -529,8 +529,10 @@ class SyncCommand extends Command
                         'mrkdwn_in' => ['fields'],
                     ],
                 ],
-            ]),
-        ]);
+                ]
+            ),
+            ]
+        );
 
         // Log all Slack messages to stdout.
         if ($this->input->getOption('log-slack-notifications') && is_array($fields)) {
@@ -617,14 +619,12 @@ class SyncCommand extends Command
         }
 
         // When debugging, limit project map to projects specified in config.
-        if (is_array($this->config['sync']['projects']['debug_projects'])) {
-            foreach ($this->projectMap as $harvest_id => $redmine_projects) {
-                if (in_array($harvest_id, $this->config['sync']['projects']['debug_projects'])) {
-                    $this->debugProjects[$harvest_id] = $redmine_projects;
-                }
+        foreach ($this->projectMap as $harvest_id => $redmine_projects) {
+            if (in_array($harvest_id, $this->config->getDebugProjectsList())) {
+                $this->debugProjects[$harvest_id] = $redmine_projects;
             }
-            $this->projectMap = $this->debugProjects;
         }
+        $this->projectMap = $this->debugProjects;
 
         if (!count($this->projectMap)) {
             throw new Exception(('Unable to populate project map!'));
@@ -682,7 +682,9 @@ class SyncCommand extends Command
     {
         $entries = [];
         // Get entries.
-        /** @var $projects \Harvest\Model\Project */
+        /**
+ * @var $projects \Harvest\Model\Project
+*/
         $project_data = $project->get('data');
         if (!is_object($project_data)) {
             // TODO: Better error message.
@@ -739,9 +741,14 @@ class SyncCommand extends Command
         );
 
         // Look for an existing "Project management" issue.
-        $pm_issue = current(array_filter($project_issues['issues'], function ($issue) {
-            return $issue['subject'] == 'Project management';
-        }));
+        $pm_issue = current(
+            array_filter(
+                $project_issues['issues'],
+                function ($issue) {
+                    return $issue['subject'] == 'Project management';
+                }
+            )
+        );
         if ($pm_issue && count($pm_issue)) {
             // Ping PM that a time entry without # was filed here.
             // Get project manager user reference, and find their Slack ID.
@@ -764,7 +771,11 @@ class SyncCommand extends Command
                 if ($pm_harvest_user_key == false) {
                     $pm_harvest_user_id = false;
                 } else {
-                    $pm_harvest_user_id = current(array_keys(array_slice($this->userMap, $pm_harvest_user_key, 1, true)));
+                    $pm_harvest_user_id = current(
+                        array_keys(
+                            array_slice($this->userMap, $pm_harvest_user_key, 1, true)
+                        )
+                    );
                     $this->userTimeEntryErrors[$pm_harvest_user_id]['entry-logged-to-pm-issue'][] = [
                       'entry' => $entry,
                       'team-member' => $this->slackUserMap[$entry->get('user-id')],
@@ -927,7 +938,6 @@ class SyncCommand extends Command
         array $redmine_time_entry_params,
         $existing_redmine_time_entry
     ) {
-        $result = false;
         $time_entry_api = new Redmine\Api\TimeEntry($this->redmineClient);
         if ($existing_redmine_time_entry === false) {
             $result = $time_entry_api->create($redmine_time_entry_params);
@@ -964,7 +974,8 @@ class SyncCommand extends Command
             );
             if ($remaining_time_key) {
                 if (isset($redmine_issue['issue']['estimated_hours'])
-                    && $redmine_issue['issue']['estimated_hours'] > 0) {
+                    && $redmine_issue['issue']['estimated_hours'] > 0
+                ) {
                     $estimated_hours = isset($redmine_issue['issue']['estimated_hours']) ?
                         $redmine_issue['issue']['estimated_hours'] : 0;
                     $spent_hours = isset($redmine_issue['issue']['spent_hours']) ?
@@ -1120,11 +1131,13 @@ class SyncCommand extends Command
             $redmine_project_name = current(array_values($project));
             $project_data_result = $this->harvestClient->getProject($harvest_id);
             if ($project_data_result->get('code') !== 200) {
-                $this->output->writeln(sprintf(
-                    '- <error>Could not get project data for Harvest ID %d associated with Redmine project %s!',
-                    $harvest_id,
-                    $redmine_project_name
-                ));
+                $this->output->writeln(
+                    sprintf(
+                        '- <error>Could not get project data for Harvest ID %d associated with Redmine project %s!',
+                        $harvest_id,
+                        $redmine_project_name
+                    )
+                );
                 continue;
             }
             $entries = $this->getHarvestTimeEntries($project_data_result);
@@ -1152,7 +1165,7 @@ class SyncCommand extends Command
     {
         return sprintf(
             'https://%s.harvestapp.com/time/day/%s/%d#timesheet_day_entry_%d',
-            $this->config['auth']['harvest']['account'],
+            $this->config->getHarvestAccount(),
             str_replace('-', '/', $entry->get('spent-at')),
             $entry->get('user-id'),
             $entry->get('id')
@@ -1174,7 +1187,12 @@ class SyncCommand extends Command
         $range = sprintf('%s to %s', $this->getRange()->from(), $this->getRange()->to());
         $io->title(sprintf('Sumac time sync from  %s', $range));
         // Load configuration.
-        $this->setConfig();
+        try {
+            $this->config = new Config();
+        } catch (\Exception $exception) {
+            $this->io->error($exception->getMessage());
+            return;
+        }
 
         // Initialize the Harvest client.
         $this->setHarvestClient();
@@ -1214,14 +1232,28 @@ class SyncCommand extends Command
         $this->io->section(sprintf('Processing %d Harvest time entries', count($this->cachedHarvestEntries)));
         $this->io->progressStart(count($this->cachedHarvestEntries));
 
-        $spell_check_only = !empty($this->config['sync']['projects']['spell_check_only']) ?
-            $this->config['sync']['projects']['spell_check_only'] : [];
-        foreach ($this->cachedHarvestEntries as $harvest_entry) {
-            $this->spellCheckEntry($harvest_entry);
+        $spell_check_only = $this->config->getSpellCheckOnlyProjectsList();
+        $project_id_to_client_id_map = [];
 
-            if (!in_array($harvest_entry->get('project-id'), $spell_check_only)) {
-                $this->syncEntry($harvest_entry);
+        $dont_spell_check = $this->config->getSkipSpellcheckClientsList();
+        foreach ($this->cachedHarvestEntries as $harvest_entry) {
+            // Populate a map of Harvest project IDs to Client IDs so we don't have to make a GET request on every
+            // time entry.
+            if (!isset($project_id_to_client_id_map[$harvest_entry->get('project-id')])) {
+                $project_id_to_client_id_map[$harvest_entry->get('project-id')] =
+                    $this->harvestClient->getProject($harvest_entry->get('project-id'))->data->get('client-id');
             }
+            // If the current time entry's client ID is *not* in the "don't spell check" list, then spell check it.
+            if (!in_array($project_id_to_client_id_map[$harvest_entry->get('project-id')], $dont_spell_check)) {
+                $this->spellCheckEntry($harvest_entry);
+            }
+            // If we are only spell checking a project, don't sync the entry.
+            if (in_array($harvest_entry->get('project-id'), $spell_check_only)) {
+                continue;
+            }
+
+            // Sync the entry from Harvest to Redmine.
+            $this->syncEntry($harvest_entry);
 
             $this->io->progressAdvance();
         }
