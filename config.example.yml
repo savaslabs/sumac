@@ -13,7 +13,8 @@ auth:
 sync:
   clients:
     dont_spell_check:
-      # Ignore spell checking for any project belonging to this client.
+      # Ignore spell checking for any project belonging to the client IDs listed below.
+      # You must use a Client ID and not a project ID, otherwise this feature won't work.
       #- '1235676890'
   projects:
     # Harvest projects to spellcheck but not sync
