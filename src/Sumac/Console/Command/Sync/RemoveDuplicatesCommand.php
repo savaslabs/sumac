@@ -4,10 +4,9 @@ namespace Sumac\Console\Command\Sync;
 
 use Sumac\Config\Config;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\NullOutput;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Redmine;
@@ -36,11 +35,17 @@ class RemoveDuplicatesCommand extends Command
             ->setDescription('Purge duplicate time entries from Redmine.')
             ->setDefinition(
                 [
-                new InputArgument(
-                    'IDs',
-                    1,
-                    'A JSON encoded list of Harvest IDs as keys with the Redmine IDs as values.'
-                )
+                    new InputOption(
+                        'config',
+                        'c',
+                        InputOption::VALUE_OPTIONAL,
+                        'Path to configuration file. Leave empty if config.yml is in repository root.'
+                    ),
+                    new InputArgument(
+                        'IDs',
+                        1,
+                        'A JSON encoded list of Harvest IDs as keys with the Redmine IDs as values.'
+                    )
                 ]
             );
     }
@@ -49,10 +54,9 @@ class RemoveDuplicatesCommand extends Command
     {
         $this->io = new SymfonyStyle($input, $output);
         try {
-            $this->config = new Config();
+            $this->config = new Config($input->getOption('config'));
         } catch (\Exception $exception) {
-            $this->io->error($exception->getMessage());
-            return false;
+            throw $exception;
         }
         $this->redmineClient = new Redmine\Client($this->config->getRedmineUrl(), $this->config->getRedmineApiKey());
     }

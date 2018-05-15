@@ -1,11 +1,11 @@
 <?php
 
-namespace Sumac\Console\Command\Sync;
+namespace Tests;
 
 use PHPUnit\Framework\TestCase;
+use Sumac\Console\Command\Sync\FindDuplicatesCommand;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
-use Symfony\Component\Yaml\Yaml;
 
 class FindDuplicatesCommandTest extends TestCase
 {

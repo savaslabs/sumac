@@ -1,8 +1,9 @@
 <?php
 
-namespace Sumac\Config;
+namespace Tests;
 
 use PHPUnit\Framework\TestCase;
+use Sumac\Config\Config;
 use Symfony\Component\Yaml\Yaml;
 
 class ConfigTest extends TestCase
