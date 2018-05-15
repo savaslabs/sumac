@@ -232,6 +232,15 @@ class SyncCommand extends Command
     }
 
     /**
+     * Set the config property on the class.
+     *
+     * @param Config $config
+     */
+    public function setConfig(Config $config) {
+        $this->config = $config;
+    }
+
+    /**
      * Set the Harvest Range based on the 'date' argument.
      *
      * @param \Symfony\Component\Console\Input\InputInterface $input
@@ -552,7 +561,7 @@ class SyncCommand extends Command
     /**
      * Pull projects from Redmine and populate redmine/harvest map.
      */
-    protected function populateProjectMap()
+    public function populateProjectMap()
     {
         $this->projectMap = [];
 
