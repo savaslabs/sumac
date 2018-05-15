@@ -1188,10 +1188,9 @@ class SyncCommand extends Command
         $io->title(sprintf('Sumac time sync from  %s', $range));
         // Load configuration.
         try {
-            $this->config = new Config();
+            $this->config = new Config($this->input->getOption('config'));
         } catch (\Exception $exception) {
-            $this->io->error($exception->getMessage());
-            return;
+            throw new $exception;
         }
 
         // Initialize the Harvest client.

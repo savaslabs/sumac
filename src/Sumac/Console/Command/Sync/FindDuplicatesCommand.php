@@ -38,12 +38,18 @@ class FindDuplicatesCommand extends Command
             ->setDescription('Find duplicate time entries')
             ->setDefinition(
                 [
-                new InputOption(
-                    'short',
-                    's',
-                    null,
-                    'Return only IDs rather than full time entries'
-                )
+                    new InputOption(
+                        'config',
+                        'c',
+                        InputOption::VALUE_OPTIONAL,
+                        'Path to configuration file. Leave empty if config.yml is in repository root.'
+                    ),
+                    new InputOption(
+                        'short',
+                        's',
+                        null,
+                        'Return only IDs rather than full time entries'
+                    )
                 ]
             );
     }
@@ -52,10 +58,9 @@ class FindDuplicatesCommand extends Command
     {
         $this->io = new SymfonyStyle($input, $output);
         try {
-            $this->config = new Config();
+            $this->config = new Config($input->getOption('config'));
         } catch (\Exception $exception) {
-            $this->io->error($exception->getMessage());
-            return false;
+            throw $exception;
         }
 
         $this->short_form = $input->getOption('short');
@@ -86,7 +91,7 @@ class FindDuplicatesCommand extends Command
     /**
      * Given an array of time entries retrieved from Redmine, get an indexed array of duplicates.
      *
-     * @param array $time_entries
+     * @param  array $time_entries
      * @return array
      */
     public function getDuplicatesFromTimeEntries(array $time_entries) :array
