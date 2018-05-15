@@ -1,5 +1,8 @@
 # Sumac
 
+[![Maintainability](https://api.codeclimate.com/v1/badges/5bd0fe53491d1eea2b28/maintainability)](https://codeclimate.com/github/savaslabs/sumac/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/5bd0fe53491d1eea2b28/test_coverage)](https://codeclimate.com/github/savaslabs/sumac/test_coverage)
+
 ![sumac monster consuming time](monster-sumac.gif "sumac monster consuming time")   :rocket:  :raised_hands: :pray: :point_right: :satellite: :soon: ![Redmine](redmine.png "Redmine") 
 
 A simple command line utility for pulling Harvest entries and pushing them into Redmine. Harvest, Redmine, a red harvest... sumac.
