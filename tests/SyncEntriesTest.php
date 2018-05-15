@@ -6,12 +6,14 @@ use PHPUnit\Framework\TestCase;
 use Sumac\Config\Config;
 use Sumac\Console\Command\Sync\SyncCommand;
 
-class SyncEntriesTest extends TestCase {
+class SyncEntriesTest extends TestCase
+{
 
     /**
      * @expectedException \Exception
      */
-    public function testProjectMapSet() {
+    public function testProjectMapSet()
+    {
         $sync_command = new SyncCommand();
         $tmp_config = tempnam(sys_get_temp_dir(), 'sumac');
         $config_yaml = <<<'EOT'

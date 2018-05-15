@@ -236,7 +236,8 @@ class SyncCommand extends Command
      *
      * @param Config $config
      */
-    public function setConfig(Config $config) {
+    public function setConfig(Config $config)
+    {
         $this->config = $config;
     }
 
