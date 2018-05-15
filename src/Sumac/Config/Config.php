@@ -9,8 +9,11 @@ class Config
 
     private $config = [];
 
-    public function __construct($config_path = 'config.yml')
+    const CONFIG_PATH_DEFAULT = 'config.yml';
+
+    public function __construct($config_path)
     {
+        $config_path = $config_path ?? self::CONFIG_PATH_DEFAULT;
         if (!file_exists($config_path)) {
             throw new \Exception(sprintf('Could not find the config.yml file at %s', $config_path));
         }

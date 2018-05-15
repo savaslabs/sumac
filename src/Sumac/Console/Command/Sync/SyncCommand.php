@@ -232,6 +232,16 @@ class SyncCommand extends Command
     }
 
     /**
+     * Set the config property on the class.
+     *
+     * @param Config $config
+     */
+    public function setConfig(Config $config)
+    {
+        $this->config = $config;
+    }
+
+    /**
      * Set the Harvest Range based on the 'date' argument.
      *
      * @param \Symfony\Component\Console\Input\InputInterface $input
@@ -552,34 +562,51 @@ class SyncCommand extends Command
     /**
      * Pull projects from Redmine and populate redmine/harvest map.
      */
-    protected function populateProjectMap()
+    public function populateProjectMap()
     {
         $this->projectMap = [];
 
         $this->setRedmineClient();
         $projects = $this->redmineClient->project->all(['limit' => 1000]);
         if (!isset($projects['projects'])) {
-            $this->output->writeln(
-                '<error>Invalid project list returned from API. Possible that API token is not set correctly.</error>'
-            );
-        } else {
-            foreach ($projects['projects'] as $project) {
-                foreach ($project['custom_fields'] as $custom_field) {
-                    if ($custom_field['name'] == 'Harvest Project ID(s)' && !empty($custom_field['value'])) {
-                        $project_ids = explode(',', $custom_field['value']);
-                        $project_id = trim(current($project_ids));
-                        // If the identifier is null a.k.a. "-", then continue.
-                        if ($project_id == '-') {
-                            continue;
-                        }
+            throw new Exception('Invalid project list returned from API. Is the API token set correctly?');
+        }
+        foreach ($projects['projects'] as $project) {
+            foreach ($project['custom_fields'] as $custom_field) {
+                if ($custom_field['name'] == 'Harvest Project ID(s)' && !empty($custom_field['value'])) {
+                    $project_ids = explode(',', $custom_field['value']);
+                    $project_id = trim(current($project_ids));
+                    // If the identifier is null a.k.a. "-", then continue.
+                    if ($project_id == '-') {
+                        continue;
+                    }
 
-                        // Check for duplicate Harvest project IDs.
-                        if (isset($this->projectMap[$project_id])) {
+                    // Check for duplicate Harvest project IDs.
+                    if (isset($this->projectMap[$project_id])) {
+                        throw new Exception(
+                            sprintf(
+                                'Project %d already in project map with values %s, tried to add new values %s',
+                                $project_id,
+                                json_encode($this->projectMap[$project_id]),
+                                json_encode(
+                                    [
+                                        'id' => $project['id'],
+                                        'name' => $project['name'],
+                                    ]
+                                )
+                            )
+                        );
+                    }
+
+                    // Search for duplicate Redmine project IDs.
+                    foreach ($this->projectMap as $harvest_project_id => $redmine_values) {
+                        $redmine_project_id = current(array_keys($redmine_values));
+                        if ($project['id'] == $redmine_project_id) {
                             throw new Exception(
                                 sprintf(
-                                    'Project %d already in project map with values %s, tried to add new values %s',
-                                    $project_id,
-                                    json_encode($this->projectMap[$project_id]),
+                                    'Proj ID %d already in map with these values %s, tried to add new values %s',
+                                    $project['id'],
+                                    json_encode($redmine_values),
                                     json_encode(
                                         [
                                             'id' => $project['id'],
@@ -589,42 +616,24 @@ class SyncCommand extends Command
                                 )
                             );
                         }
-
-                        // Search for duplicate Redmine project IDs.
-                        foreach ($this->projectMap as $harvest_project_id => $redmine_values) {
-                            $redmine_project_id = current(array_keys($redmine_values));
-                            if ($project['id'] == $redmine_project_id) {
-                                throw new Exception(
-                                    sprintf(
-                                        'Proj ID %d already in map with these values %s, tried to add new values %s',
-                                        $project['id'],
-                                        json_encode($redmine_values),
-                                        json_encode(
-                                            [
-                                                'id' => $project['id'],
-                                                'name' => $project['name'],
-                                            ]
-                                        )
-                                    )
-                                );
-                            }
-                        }
-                        // Add to project map.
-                        $this->projectMap[$project_id] = [
-                            $project['id'] => $project['name'],
-                        ];
                     }
+                    // Add to project map.
+                    $this->projectMap[$project_id] = [
+                        $project['id'] => $project['name'],
+                    ];
                 }
             }
         }
 
         // When debugging, limit project map to projects specified in config.
-        foreach ($this->projectMap as $harvest_id => $redmine_projects) {
-            if (in_array($harvest_id, $this->config->getDebugProjectsList())) {
-                $this->debugProjects[$harvest_id] = $redmine_projects;
+        if (is_array($this->config->getDebugProjectsList())) {
+            foreach ($this->projectMap as $harvest_id => $redmine_projects) {
+                if (in_array($harvest_id, $this->config->getDebugProjectsList())) {
+                    $this->debugProjects[$harvest_id] = $redmine_projects;
+                }
             }
+            $this->projectMap = $this->debugProjects;
         }
-        $this->projectMap = $this->debugProjects;
 
         if (!count($this->projectMap)) {
             throw new Exception(('Unable to populate project map!'));
@@ -683,8 +692,8 @@ class SyncCommand extends Command
         $entries = [];
         // Get entries.
         /**
- * @var $projects \Harvest\Model\Project
-*/
+         * @var $projects \Harvest\Model\Project
+         */
         $project_data = $project->get('data');
         if (!is_object($project_data)) {
             // TODO: Better error message.
@@ -777,9 +786,9 @@ class SyncCommand extends Command
                         )
                     );
                     $this->userTimeEntryErrors[$pm_harvest_user_id]['entry-logged-to-pm-issue'][] = [
-                      'entry' => $entry,
-                      'team-member' => $this->slackUserMap[$entry->get('user-id')],
-                      'project' => $redmine_project_data['project']['name'],
+                        'entry' => $entry,
+                        'team-member' => $this->slackUserMap[$entry->get('user-id')],
+                        'project' => $redmine_project_data['project']['name'],
                     ];
                 }
             }
@@ -1016,8 +1025,8 @@ class SyncCommand extends Command
         }
         if ($spelling_errors) {
             $this->userTimeEntryErrors[$harvest_entry->get('user-id')]['spelling'][] = [
-              'entry' => $harvest_entry,
-              'spelling-errors' => $spelling_errors,
+                'entry' => $harvest_entry,
+                'spelling-errors' => $spelling_errors,
             ];
         }
     }
@@ -1190,6 +1199,7 @@ class SyncCommand extends Command
         try {
             $this->config = new Config($this->input->getOption('config'));
         } catch (\Exception $exception) {
+            $this->io->error($exception->getMessage());
             throw new $exception;
         }
 
