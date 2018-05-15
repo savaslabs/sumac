@@ -15,11 +15,7 @@ class Config
             throw new \Exception(sprintf('Could not find the config.yml file at %s', $config_path));
         }
         // Load the configuration.
-        $yaml = new Yaml();
-        if (!file_exists($config_path)) {
-            throw new \Exception('Could not find a config.yml file.');
-        }
-        $this->config = $yaml->parse(file_get_contents($config_path), true);
+        $this->config = Yaml::parseFile($config_path, Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE);
     }
 
     public function getDictionaryProjectAndPage()

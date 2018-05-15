@@ -3,6 +3,9 @@
 namespace Sumac\Console\Command\Sync;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Yaml\Yaml;
 
 class FindDuplicatesCommandTest extends TestCase
 {
@@ -17,6 +20,24 @@ class FindDuplicatesCommandTest extends TestCase
     {
         $command = new FindDuplicatesCommand();
         $this->assertEquals($command->getDuplicates($input_array), $output_array);
+    }
+
+    public function testFindDuplicatesCommandNonExistentConfig()
+    {
+        $application = new Application();
+        $application->add(new FindDuplicatesCommand());
+        $command = $application->find('sync:find-duplicates');
+        $command_tester = new CommandTester($command);
+        try {
+            $command_tester->execute(
+                [
+                'command' => $command->getName(),
+                '--config' => 'doesntexist.yml',
+                ]
+            );
+        } catch (\Exception $exception) {
+            $this->assertContains('Could not find the config.yml file at doesntexist.yml', $exception->getMessage());
+        }
     }
 
     /**
