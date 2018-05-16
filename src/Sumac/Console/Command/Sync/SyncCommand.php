@@ -281,9 +281,9 @@ class SyncCommand extends Command
     /**
      * Set a Redmine client for later use.
      */
-    private function setRedmineClient()
+    public function setRedmineClient($redmine_client = null)
     {
-        $this->redmineClient = new Redmine\Client(
+        $this->redmineClient = $redmine_client ?? new Redmine\Client(
             $this->config->getRedmineUrl(),
             $this->config->getRedmineApiKey()
         );
@@ -566,8 +566,9 @@ class SyncCommand extends Command
     {
         $this->projectMap = [];
 
-        $this->setRedmineClient();
-        $projects = $this->redmineClient->project->all(['limit' => 1000]);
+        /** @var Redmine\Api\Project $project_api */
+        $project_api = $this->redmineClient->api('project');
+        $projects = $project_api->all(['limit' => 1000]);
         if (!isset($projects['projects'])) {
             throw new Exception('Invalid project list returned from API. Is the API token set correctly?');
         }
@@ -626,7 +627,7 @@ class SyncCommand extends Command
         }
 
         // When debugging, limit project map to projects specified in config.
-        if (is_array($this->config->getDebugProjectsList())) {
+        if ($this->config->getDebugProjectsList()) {
             foreach ($this->projectMap as $harvest_id => $redmine_projects) {
                 if (in_array($harvest_id, $this->config->getDebugProjectsList())) {
                     $this->debugProjects[$harvest_id] = $redmine_projects;
@@ -638,6 +639,16 @@ class SyncCommand extends Command
         if (!count($this->projectMap)) {
             throw new Exception(('Unable to populate project map!'));
         }
+    }
+
+    /**
+     * Getter for projectMap.
+     *
+     * @return array
+     */
+    public function getProjectMap()
+    {
+        return $this->projectMap;
     }
 
     /**
