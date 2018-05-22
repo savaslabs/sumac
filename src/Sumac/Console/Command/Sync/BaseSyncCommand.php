@@ -25,6 +25,14 @@ abstract class BaseSyncCommand extends Command
      * @var Config
      */
     protected $config;
+    /**
+     * @var \Symfony\Component\Console\Input\InputInterface
+     */
+    protected $input;
+    /**
+     * @var \Symfony\Component\Console\Output\OutputInterface
+     */
+    protected $output;
 
     /**
      * @var HarvestAPI
@@ -42,6 +50,8 @@ abstract class BaseSyncCommand extends Command
     {
         parent::initialize($input, $output);
         $this->io = new SymfonyStyle($input, $output);
+        $this->input = $input;
+        $this->output = $output;
         try {
             $this->config = new Config($input->getOption('config'));
         } catch (\Exception $exception) {

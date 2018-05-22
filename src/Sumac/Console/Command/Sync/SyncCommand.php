@@ -9,43 +9,27 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Command\Command;
 use Redmine;
 use Harvest\HarvestAPI;
 use Harvest\Model\Range;
 use Harvest\Model\DayEntry;
 use Carbon\Carbon;
 
-class SyncCommand extends Command
+class SyncCommand extends BaseSyncCommand
 {
     /**
      * @var \Harvest\Model\Range
      */
     private $range;
-    /**
-     * @var \Symfony\Component\Console\Input\InputInterface
-     */
-    private $input;
-    /**
-     * @var \Symfony\Component\Console\Output\OutputInterface
-     */
-    private $output;
-    /**
-     * @var \Symfony\Component\Console\Style\SymfonyStyle
-     */
-    private $io;
-    /**
-     * @var Config
-     */
-    private $config;
+
     /**
      * @var \Redmine\Client
      */
-    private $redmineClient;
+    protected $redmineClient;
     /**
      * @var \Harvest\HarvestAPI
      */
-    private $harvestClient;
+    protected $harvestClient;
     /**
      * @var array
      */
@@ -1186,15 +1170,10 @@ class SyncCommand extends Command
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $io = new SymfonyStyle($input, $output);
-        $this->io = $io;
-        // Set input/output for use in other methods.
-        $this->input = $input;
-        $this->output = $output;
         // Set the Harvest Range.
         $this->setRange($input);
         $range = sprintf('%s to %s', $this->getRange()->from(), $this->getRange()->to());
-        $io->title(sprintf('Sumac time sync from  %s', $range));
+        $this->io->title(sprintf('Sumac time sync from  %s', $range));
         // Load configuration.
         try {
             $this->config = new Config($this->input->getOption('config'));
