@@ -3,7 +3,6 @@
 namespace Sumac\Console\Command\Sync;
 
 use Sumac\Config\Config;
-use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -11,23 +10,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Redmine;
 
-class RemoveDuplicatesCommand extends Command
+class RemoveDuplicatesCommand extends BaseSyncCommand
 {
-
-    /**
-     * @var SymfonyStyle
-     */
-    private $io;
-
-    /**
-     * @var Redmine\Client
-     */
-    private $redmineClient;
-
-    /**
-     * @var Config
-     */
-    private $config;
 
     protected function configure()
     {
@@ -48,17 +32,6 @@ class RemoveDuplicatesCommand extends Command
                     )
                 ]
             );
-    }
-
-    protected function initialize(InputInterface $input, OutputInterface $output)
-    {
-        $this->io = new SymfonyStyle($input, $output);
-        try {
-            $this->config = new Config($input->getOption('config'));
-        } catch (\Exception $exception) {
-            throw $exception;
-        }
-        $this->redmineClient = new Redmine\Client($this->config->getRedmineUrl(), $this->config->getRedmineApiKey());
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)

@@ -2,34 +2,13 @@
 
 namespace Sumac\Console\Command\Sync;
 
-use Sumac\Config\Config;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Command\Command;
-use Redmine;
 
-class FindDuplicatesCommand extends Command
+class FindDuplicatesCommand extends BaseSyncCommand
 {
 
-    const HARVEST_TIME_ENTRY_ID_FIELD = 20;
-
-    /**
-     * @var Config
-     */
-    private $config;
-    /**
-     * @var Redmine\Client
-     */
-    private $redmineClient;
-    /**
-     * @var SymfonyStyle
-     */
-    private $io;
-    /**
-     * @var bool
-     */
     private $short_form = false;
 
     protected function configure()
@@ -56,36 +35,13 @@ class FindDuplicatesCommand extends Command
 
     protected function initialize(InputInterface $input, OutputInterface $output)
     {
-        $this->io = new SymfonyStyle($input, $output);
-        try {
-            $this->config = new Config($input->getOption('config'));
-        } catch (\Exception $exception) {
-            throw $exception;
-        }
-
+        parent::initialize($input, $output);
         $this->short_form = $input->getOption('short');
-
-        $this->redmineClient = new Redmine\Client($this->config->getRedmineUrl(), $this->config->getRedmineApiKey());
     }
 
     public function setShortForm($short_form)
     {
         $this->short_form = $short_form;
-    }
-
-    protected function getTimeEntries() :array
-    {
-        try {
-            return $this->redmineClient->time_entry->all(
-                [
-                'limit' => 1000000,
-                'offset' => 0,
-                ]
-            );
-        } catch (\Exception $exception) {
-            $this->io->error('Unable to connect to Redmine. Error: ' . $exception->getMessage());
-            return [];
-        }
     }
 
     /**
@@ -138,6 +94,11 @@ class FindDuplicatesCommand extends Command
         return $indexed;
     }
 
+    /**
+     * @param InputInterface $input
+     * @param OutputInterface $output
+     * @return bool|int|null
+     */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
 
@@ -148,6 +109,6 @@ class FindDuplicatesCommand extends Command
 
         $duplicates = $this->getDuplicatesFromTimeEntries($time_entries);
 
-        return $this->io->write(json_encode($duplicates));
+        $this->io->write(json_encode($duplicates));
     }
 }
