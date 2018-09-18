@@ -105,3 +105,4 @@ You can use the `exclude` section to add the Harvest IDs for projects that you d
 The `sync:find-duplicates` command will search through Redmine to locate time entries containing duplicate Harvest ID references. Recommended usage is to use the `-s` flag to reduce the amount of output you get. The command will output a JSON encoded string.
 
 The `sync:remove-duplicates {data}` command will accept the output of `sync:find-duplicates` and remove the duplicate time entries.
+
