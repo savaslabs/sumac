@@ -1265,7 +1265,8 @@ class SyncCommand extends Command
             }
             // If the current time entry's client ID is *not* in the "don't spell check" list, then spell check it.
             if (!in_array($project_id_to_client_id_map[$harvest_entry->get('project-id')], $dont_spell_check)) {
-                $this->spellCheckEntry($harvest_entry);
+                // Comment out spell check - no longer that useful for us
+                // $this->spellCheckEntry($harvest_entry);
             }
             // If we are only spell checking a project, don't sync the entry.
             if (in_array($harvest_entry->get('project-id'), $spell_check_only)) {
