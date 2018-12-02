@@ -68,8 +68,12 @@ class Config
 
     public function getSlackWebhookUrl()
     {
-        return $this->config['auth']['slack']['webhook_url'] ?? null
-            ;
+        return $this->config['auth']['slack']['webhook_url'] ?? null;
+    }
+
+    public function getSlackWebhookNotifyUrl()
+    {
+        return $this->config['auth']['slack']['webhook_notify_url'] ?? null;
     }
 
     public function getDebugProjectsList()
