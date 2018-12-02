@@ -181,15 +181,21 @@ class FindUnattendedTasks extends Command
         $resulting_issues = $this->removeInternallyCreatedIssues($prospective_issues['issues'], $savas_users);
 
         $slack_payload = [];
-        $slack_payload['text'] = "The following tasks have been created in the _past two weeks_ by a *non-Savasian*";
-        $slack_payload['text'] .= " and we have not responded to them yet. They may require our attention:\n";
+        $slack_payload['text'] = sprintf(
+            "The following tasks have been created by a *non-Savasian* between the date range of %s and %s",
+            $this->range['from'],
+            $this->range['to']
+        );
+        $slack_payload['text'] .= " and we have not responded to them yet. They may require our attention:\n\n";
 
+        $redmine_url = $this->config->getRedmineUrl();
         foreach ($resulting_issues as $issue) {
-            $slack_payload['text'] .=
-              'Project: *' . $issue['project']['name'] . '* Author: *' . $issue['author']['name'];
-            $slack_payload['text'] .=
-              '* Link: *<https://pm.savaslabs.com/issues/' . $issue['id'] . '|';
-            $slack_payload['text'] .= $issue['subject'] . ' (' . $issue['id'] . ")>* \n";
+            $slack_payload['text'] .= sprintf(
+                "Project: *%s* Author: *%s* Link: *<%s>*\n",
+                $issue['project']['name'],
+                $issue['author']['name'],
+                $redmine_url . '/issues/' . $issue['id'] . '|' . $issue['subject'] . ' (' . $issue['id'] . ")"
+            );
         }
 
         $slack_message = json_encode($slack_payload);
