@@ -12,4 +12,6 @@ WORKDIR /usr/src/sumac
 
 RUN composer install -n --prefer-dist --working-dir=/usr/src/sumac
 
+COPY "config/memory-limit.ini" "$PHP_INI_DIR/conf.d/"
+
 ENTRYPOINT ["php", "sumac.php"]
