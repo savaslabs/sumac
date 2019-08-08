@@ -525,11 +525,11 @@ class SyncCommand extends Command
             'body' => json_encode(
                 [
                 'username' => 'Sumac',
-                'channel' => $slack_id,
+                'channel' => 'sumac',
                 'text' => sprintf(
                     '%s %s! Here is a list of potential errors detected in your harvest time entries.',
                     $greeting,
-                    $slack_id
+                    '<@' . $slack_id . '>'
                 ),
                 'attachments' => [
                     [
