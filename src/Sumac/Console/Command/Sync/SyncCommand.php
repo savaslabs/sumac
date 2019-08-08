@@ -529,7 +529,7 @@ class SyncCommand extends Command
                 'text' => sprintf(
                     '%s %s! Here is a list of potential errors detected in your harvest time entries.',
                     $greeting,
-                    '<@' . $slack_id . '>'
+                    $slack_id
                 ),
                 'attachments' => [
                     [
